@@ -28,4 +28,10 @@ abstract class TestCase extends Orchestra
         $app['config']->set('gmb-pay.demo_mode', true);
         $app['config']->set('gmb-pay.default', 'modempay');
     }
+
+    protected function defineDatabaseMigrations(): void
+    {
+        $this->loadMigrationsFrom(__DIR__ . '/Fixtures/migrations');
+        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+    }
 }
