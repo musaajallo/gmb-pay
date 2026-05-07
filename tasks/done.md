@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F02 — Charges migration + Charge model ✓
+- **Tests:** 6/6 passing (full suite 16/16) — `vendor/bin/pest`
+- **Files changed:** 3 (3 new)
+  - `database/migrations/2026_01_01_000002_create_gmb_pay_charges_table.php` (new)
+  - `src/Models/Charge.php` (new)
+  - `tests/Persistence/ChargeTest.php` (new)
+- **Lines:** +156 / -0
+- **Complexity:** Low — single table, single model, one belongsTo + enum cast
+- **Notes:**
+  - `status` cast to `Africs\GmbPay\Enums\ChargeStatus`; backed-string values (`pending`, `succeeded`, `failed`, `cancelled`, `refunded`) round-trip through SQLite cleanly
+  - Two unique indexes: `reference` (local id, always set) and `(driver, provider_reference)` (provider id, nullable). SQLite treats multiple NULLs as distinct so dedup works as soon as the provider responds
+  - `customer_id` is `nullable + nullOnDelete` because one-shot phone payments don't need a stored customer (see F22)
+  - Index on `status` added now to keep the cycle command's `where status = 'active'` lookups cheap when subscriptions land (F34)
+
 ## F01 — Customers migration + Customer model ✓
 - **Tests:** 4/4 passing (full suite 10/10) — `vendor/bin/pest`
 - **Files changed:** 6 (5 new, 1 modified)
