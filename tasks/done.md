@@ -2,6 +2,19 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F04 — Payouts migration + Payout model ✓
+- **Tests:** 5/5 passing (full suite 27/27) — `vendor/bin/pest`
+- **Files changed:** 3 (3 new)
+  - `database/migrations/2026_01_01_000004_create_gmb_pay_payouts_table.php` (new)
+  - `src/Models/Payout.php` (new)
+  - `tests/Persistence/PayoutTest.php` (new)
+- **Lines:** +137 / -0
+- **Complexity:** Low — single table, single model, no relations, mirror of charges' unique-index strategy
+- **Notes:**
+  - `recipient_phone` stored as plain string (not nullable) — driver code normalizes to E.164 on the way in. Phase-1 gateways all require a phone, so non-null is correct now; non-phone rails (bank account, card) would need a column rename later
+  - Composite unique `(driver, provider_reference)` matches the charges table — keeps dedup logic identical for whichever subsystem (or future cycle command) needs it
+  - No `customer_id` and no `charge_id` — payouts are merchant-initiated money-out, decoupled from inbound charge state. F37/F38 (subscription webhooks) will not touch this table
+
 ## F03 — Refunds migration + Refund model ✓
 - **Tests:** 6/6 passing (full suite 22/22) — `vendor/bin/pest`
 - **Files changed:** 4 (3 new, 1 modified)
