@@ -1,44 +1,42 @@
 # TODO
 
-## Active: F08 — UpdateChargeFromWebhook listener
+## Active: F09 — UpdateRefundFromWebhook listener
 
-**Goal:** When `WebhookReceived` carries a `charge.*` event, find the matching `gmb_pay_charges` row by `(driver, provider_reference)` and update its status. No-op if no row matches (provider may emit events for charges this app didn't initiate).
+**Goal:** Mirror F08 for refunds. When `WebhookReceived` carries a `refund.*` event, find the matching `gmb_pay_refunds` row by `(charge.driver, provider_reference)` and update its status. No-op if no row matches.
 
 ### Steps
 
-1. **RED — write the test first** at `tests/Webhook/UpdateChargeFromWebhookTest.php`:
-   - Persist a `Charge` with `driver=modempay`, `provider_reference=ch_provider_1`, `status=Pending`
-   - Dispatch `WebhookReceived` carrying a DTO with `type=ChargeSucceeded`, `driver=modempay`, `providerReference=ch_provider_1`
-   - Assert the charge is reloaded and `status=Succeeded`
-   - Repeat with `ChargeFailed` and `ChargeCancelled` mapping to `Failed` / `Cancelled`
-   - Assert no-op when there's no matching row (no exception, charge count unchanged)
-   - Assert the listener ignores `refund.*` and `unknown` events
-2. **Listener** at `src/Listeners/UpdateChargeFromWebhook.php`:
-   - `__invoke(WebhookReceived $event)`. Switch on `$event->event->type` for the three charge cases; map to `ChargeStatus`. Return early otherwise
-   - Lookup: `Charge::where('driver', $dto->driver)->where('provider_reference', $dto->providerReference)->first()`. Skip if null or `providerReference` is null
-   - Update via `update(['status' => ...])` — Eloquent will respect the enum cast
-3. **Wiring** — for this feature, register the listener manually inside the test's `defineEnvironment()` or via `Event::listen` in a setup hook. F10 will auto-register from the service provider.
-4. Run `vendor/bin/pest`. Tick F08, append done entry, commit `F08: UpdateChargeFromWebhook listener`
+1. **RED — write the test first** at `tests/Webhook/UpdateRefundFromWebhookTest.php`:
+   - Persist a `Charge` with `driver=modempay` and a `Refund` with `provider_reference=rfd_provider_1`, `status=Pending`
+   - Dispatch `WebhookReceived` carrying a DTO with `type=RefundSucceeded`, `driver=modempay`, `providerReference=rfd_provider_1`
+   - Assert the refund is reloaded with `status=Succeeded`
+   - Repeat for `RefundFailed` → `Failed`
+   - Assert no-op when there's no matching row, and ignore for `charge.*` and `unknown` events
+   - Assert cross-driver isolation: a refund whose parent charge has `driver=wave` is **not** updated by a `modempay` webhook even with the same `provider_reference`
+2. **Listener** at `src/Listeners/UpdateRefundFromWebhook.php`:
+   - `__invoke(WebhookReceived $event)`. Switch on the two refund cases; map to `RefundStatus`. Return early otherwise
+   - Lookup joins via parent charge: `Refund::whereHas('charge', fn ($q) => $q->where('driver', $dto->driver))->where('provider_reference', $dto->providerReference)->first()`
+   - Update via `update(['status' => ...])`
+3. Run `vendor/bin/pest`. Tick F09, append done entry, commit `F09: UpdateRefundFromWebhook listener`
 
 ### Files this feature will touch
 
-- `src/Listeners/UpdateChargeFromWebhook.php` (new)
-- `tests/Webhook/UpdateChargeFromWebhookTest.php` (new)
+- `src/Listeners/UpdateRefundFromWebhook.php` (new)
+- `tests/Webhook/UpdateRefundFromWebhookTest.php` (new)
 - `tasks/all-features.md` (check the box)
 - `tasks/done.md` (append entry)
 
 ### Done criteria
 
 - All Pest tests pass
-- The three `charge.*` types map to the right `ChargeStatus`
-- A webhook with no matching local charge does not throw and does not create a row
-- Refund and unknown events are no-ops for this listener
+- Both `refund.*` types map to the right `RefundStatus`
+- A webhook with no matching local refund does not throw
+- Driver scoping is enforced via the parent charge — a wave-driver refund is not mutated by a modempay webhook
 
 ### Notes for the implementer
 
-- Use enum-to-status mapping in a private match expression — keep the public surface a single `__invoke`
-- Don't update `provider_reference` or `amount_minor` from the webhook — the local row is the source of truth for those; the webhook only confirms terminal state. F37/F38 (subscription advance) will handle period rolling separately
-- The test should NOT call `Event::fake()` here — it needs the listener to actually fire. Use the controller route or call `event(new WebhookReceived(...))` directly
+- The Refund table has no `driver` column; the parent Charge does. That's why the lookup uses `whereHas` on the relation. Don't add a `driver` column to refunds — it's a denormalization with no current callers
+- Same `?->update(...)` pattern as F08 to make missing-row a silent no-op
 
 ---
 

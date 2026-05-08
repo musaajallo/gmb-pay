@@ -2,6 +2,19 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F08 — UpdateChargeFromWebhook listener ✓
+- **Tests:** 6/6 passing (full suite 47/47) — `vendor/bin/pest`
+- **Files changed:** 2 (2 new)
+  - `src/Listeners/UpdateChargeFromWebhook.php` (new)
+  - `tests/Webhook/UpdateChargeFromWebhookTest.php` (new)
+- **Lines:** +130 / -0
+- **Complexity:** Low — single listener, single match expression, scoped lookup
+- **Notes:**
+  - Listener is registered manually via `Event::listen` in the test's `beforeEach`. F10 will move that into the service provider behind a config flag, so this test stays useful as a unit-level guard even after auto-registration
+  - Lookup is scoped on **both** `driver` and `provider_reference` — proven by the cross-driver test. Without the driver scope, a webhook from one provider could mutate a same-named charge from another
+  - Refund and Unknown event types are explicit `default => null` no-ops — F09 picks up refunds in its own listener so this one stays single-purpose
+  - Used `?->update(...)` so a missing local row is silent (provider may emit events for charges initiated outside this app); the test "no matching local charge" codifies that as a non-throw
+
 ## F07 — Webhook persistence + dedup ✓
 - **Tests:** 3/3 passing (full suite 41/41) — `vendor/bin/pest`
 - **Files changed:** 4 (1 new, 3 modified)
