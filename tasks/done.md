@@ -2,6 +2,18 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F09 — UpdateRefundFromWebhook listener ✓
+- **Tests:** 5/5 passing (full suite 52/52) — `vendor/bin/pest`
+- **Files changed:** 2 (2 new)
+  - `src/Listeners/UpdateRefundFromWebhook.php` (new)
+  - `tests/Webhook/UpdateRefundFromWebhookTest.php` (new)
+- **Lines:** +120 / -0
+- **Complexity:** Low — same shape as F08 with a `whereHas('charge')` instead of a direct driver scope
+- **Notes:**
+  - Refunds have no `driver` column — driver scoping piggybacks on the parent charge via `whereHas`. This avoids denormalizing driver onto the refund row, which would need a backfill if the charge ever moved drivers (rare but legal during merchant migration)
+  - Cross-driver test uses two charges + two refunds with the same `provider_reference` to prove a modempay webhook does not bleed into a wave refund
+  - Same `?->update(...)` no-op pattern as F08; the refund table is small enough that an extra missed lookup is cheaper than tracking unknown refund references in another table
+
 ## F08 — UpdateChargeFromWebhook listener ✓
 - **Tests:** 6/6 passing (full suite 47/47) — `vendor/bin/pest`
 - **Files changed:** 2 (2 new)

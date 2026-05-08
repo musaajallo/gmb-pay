@@ -1,42 +1,46 @@
 # TODO
 
-## Active: F09 — UpdateRefundFromWebhook listener
+## Active: F10 — Auto-register webhook listeners
 
-**Goal:** Mirror F08 for refunds. When `WebhookReceived` carries a `refund.*` event, find the matching `gmb_pay_refunds` row by `(charge.driver, provider_reference)` and update its status. No-op if no row matches.
+**Goal:** The package should make `UpdateChargeFromWebhook` and `UpdateRefundFromWebhook` fire on `WebhookReceived` automatically — no manual `Event::listen` in user code. Gated by `gmb-pay.events.auto_register` so consumers can opt out and wire their own.
 
 ### Steps
 
-1. **RED — write the test first** at `tests/Webhook/UpdateRefundFromWebhookTest.php`:
-   - Persist a `Charge` with `driver=modempay` and a `Refund` with `provider_reference=rfd_provider_1`, `status=Pending`
-   - Dispatch `WebhookReceived` carrying a DTO with `type=RefundSucceeded`, `driver=modempay`, `providerReference=rfd_provider_1`
-   - Assert the refund is reloaded with `status=Succeeded`
-   - Repeat for `RefundFailed` → `Failed`
-   - Assert no-op when there's no matching row, and ignore for `charge.*` and `unknown` events
-   - Assert cross-driver isolation: a refund whose parent charge has `driver=wave` is **not** updated by a `modempay` webhook even with the same `provider_reference`
-2. **Listener** at `src/Listeners/UpdateRefundFromWebhook.php`:
-   - `__invoke(WebhookReceived $event)`. Switch on the two refund cases; map to `RefundStatus`. Return early otherwise
-   - Lookup joins via parent charge: `Refund::whereHas('charge', fn ($q) => $q->where('driver', $dto->driver))->where('provider_reference', $dto->providerReference)->first()`
-   - Update via `update(['status' => ...])`
-3. Run `vendor/bin/pest`. Tick F09, append done entry, commit `F09: UpdateRefundFromWebhook listener`
+1. **RED — write the test first** at `tests/Webhook/AutoRegisterListenersTest.php`:
+   - **Top of file**: override the test environment to set `gmb-pay.events.auto_register=true` (override `defineEnvironment` in a per-file extension OR use `tap($app['config'])->set(...)` in a `beforeEach`)
+   - Persist a charge in `Pending`. POST `/gmb-pay/webhook/modempay` with payload `{"id":"evt_auto","type":"charge.succeeded","provider_reference":"prov_auto"}` — but the AbstractDriver doesn't currently extract `provider_reference` from the payload. So the test should dispatch `WebhookReceived` directly OR the driver must learn to pull `provider_reference` (do that here)
+   - Assert charge is `Succeeded` after the dispatch — without registering listeners manually
+   - Add a second test that flips `auto_register=false` and asserts the charge stays `Pending`
+2. **AbstractDriver::parseWebhook()** — additionally extract `provider_reference` from the payload when present. Keep extraction permissive: accept either `provider_reference` or `reference` keys
+3. **Service provider boot()** — when `gmb-pay.events.auto_register` is truthy, call:
+   ```php
+   Event::listen(WebhookReceived::class, UpdateChargeFromWebhook::class);
+   Event::listen(WebhookReceived::class, UpdateRefundFromWebhook::class);
+   ```
+4. **Config default** — add `'events' => ['auto_register' => true]` to `config/gmb-pay.php`
+5. Run `vendor/bin/pest`. Tick F10, append done entry, commit `F10: auto-register webhook listeners`
 
 ### Files this feature will touch
 
-- `src/Listeners/UpdateRefundFromWebhook.php` (new)
-- `tests/Webhook/UpdateRefundFromWebhookTest.php` (new)
+- `config/gmb-pay.php` (modified — add `events.auto_register`)
+- `src/GmbPayServiceProvider.php` (modified — `Event::listen` calls in boot)
+- `src/Drivers/AbstractDriver.php` (modified — also extract `provider_reference`)
+- `tests/Webhook/AutoRegisterListenersTest.php` (new)
 - `tasks/all-features.md` (check the box)
 - `tasks/done.md` (append entry)
 
 ### Done criteria
 
 - All Pest tests pass
-- Both `refund.*` types map to the right `RefundStatus`
-- A webhook with no matching local refund does not throw
-- Driver scoping is enforced via the parent charge — a wave-driver refund is not mutated by a modempay webhook
+- With auto-register on (default), a webhook POST advances the charge status
+- With auto-register off, a webhook POST writes the row but does not advance the charge
+- Existing F08/F09 tests continue to pass (their explicit `Event::listen` is now redundant but not harmful — leave as-is)
 
 ### Notes for the implementer
 
-- The Refund table has no `driver` column; the parent Charge does. That's why the lookup uses `whereHas` on the relation. Don't add a `driver` column to refunds — it's a denormalization with no current callers
-- Same `?->update(...)` pattern as F08 to make missing-row a silent no-op
+- Use `Event::listen` from the `Illuminate\Support\Facades\Event` facade. Don't invent a new "Listener registration class"
+- Idempotency: it's fine to register twice (Laravel handles dup listeners by class). But guard with `if (! $this->app->bound(...))` only if you measure a real problem — premature
+- Tests overriding env: per-file extension. See `tests/TestCase.php` — define a child class in the same file that flips the config value, or use `Config::set(...)` in `beforeEach`. Avoid a global flip in `TestCase` so default tests still represent the package default
 
 ---
 
