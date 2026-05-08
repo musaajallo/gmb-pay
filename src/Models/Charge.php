@@ -7,6 +7,7 @@ namespace Africs\GmbPay\Models;
 use Africs\GmbPay\Enums\ChargeStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Charge extends Model
 {
@@ -23,5 +24,10 @@ class Charge extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class);
     }
 }

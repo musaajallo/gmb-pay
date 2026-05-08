@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F03 — Refunds migration + Refund model ✓
+- **Tests:** 6/6 passing (full suite 22/22) — `vendor/bin/pest`
+- **Files changed:** 4 (3 new, 1 modified)
+  - `database/migrations/2026_01_01_000003_create_gmb_pay_refunds_table.php` (new)
+  - `src/Models/Refund.php` (new)
+  - `src/Models/Charge.php` (modified — added `refunds(): HasMany`)
+  - `tests/Persistence/RefundTest.php` (new)
+- **Lines:** +75 / -1
+- **Complexity:** Low — single table, single model, one belongsTo + inverse hasMany + enum cast
+- **Notes:**
+  - `charge_id` uses `constrained()->cascadeOnDelete()` — deleting a charge wipes its refund rows. Acceptable because production refund history will live in the provider too; revisit with soft deletes when audit needs surface
+  - No `(driver, provider_reference)` unique on refunds (unlike charges) because provider_reference alone is not globally unique across drivers, but refunds are always reached via `charge_id` so dedup is the listener's job in F09 anyway
+  - `unique(reference)` is the local invariant tested explicitly so duplicate-create surfaces a `QueryException` rather than silently inserting
+
 ## F02 — Charges migration + Charge model ✓
 - **Tests:** 6/6 passing (full suite 16/16) — `vendor/bin/pest`
 - **Files changed:** 3 (3 new)
