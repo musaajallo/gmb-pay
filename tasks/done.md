@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F06 — Idempotency keys migration + IdempotencyKey model ✓
+- **Tests:** 5/5 passing (full suite 38/38) — `vendor/bin/pest`
+- **Files changed:** 3 (3 new)
+  - `database/migrations/2026_01_01_000006_create_gmb_pay_idempotency_keys_table.php` (new)
+  - `src/Models/IdempotencyKey.php` (new)
+  - `tests/Persistence/IdempotencyKeyTest.php` (new)
+- **Lines:** +138 / -0
+- **Complexity:** Low — single table, single model, polymorphic target
+- **Notes:**
+  - `key` is 191 chars to keep the composite `(driver, key)` index under MySQL's old utf8mb4 767-byte limit without `innodb_large_prefix` config — same default Laravel uses
+  - `target_type` and `target_id` are both nullable so F11 can write the row before the target exists, then back-fill on success. Tests use a non-null Charge target so the morphTo path is exercised
+  - Added `(target_type, target_id)` index for reverse lookups ("which idempotency key created this Charge?") — cheap to add now, painful to add later when the table has volume
+  - This closes Phase A. Persistence layer is complete; F07 is the first feature that *uses* these tables together
+
 ## F05 — Webhook events migration + WebhookEvent model ✓
 - **Tests:** 6/6 passing (full suite 33/33) — `vendor/bin/pest`
 - **Files changed:** 3 (3 new)
