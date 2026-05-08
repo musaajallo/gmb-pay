@@ -53,7 +53,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - [x] **F02** — Migration + Eloquent model for `gmb_pay_charges` (`reference`, `provider_reference`, `driver`, `customer_id`, `amount_minor`, `currency`, `status`, `metadata`, timestamps; status enum cast)
 - [x] **F03** — Migration + Eloquent model for `gmb_pay_refunds` (`charge_id`, `reference`, `provider_reference`, `amount_minor`, `status`, timestamps)
 - [x] **F04** — Migration + Eloquent model for `gmb_pay_payouts` (`reference`, `provider_reference`, `recipient_phone`, `amount_minor`, `currency`, `status`, timestamps)
-- [ ] **F05** — Migration + Eloquent model for `gmb_pay_webhook_events` (`driver`, `provider_event_id`, `type`, `payload` JSON, `received_at`; **unique index on (driver, provider_event_id)** for dedup)
+- [x] **F05** — Migration + Eloquent model for `gmb_pay_webhook_events` (`driver`, `provider_event_id`, `type`, `payload` JSON, `received_at`; **unique index on (driver, provider_event_id)** for dedup)
 - [ ] **F06** — Migration + Eloquent model for `gmb_pay_idempotency_keys` (`driver`, `key`, `target_type`, `target_id`, `created_at`; unique on (driver, key))
 
 ### Phase B — Webhook persistence + dispatch

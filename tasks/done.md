@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F05 — Webhook events migration + WebhookEvent model ✓
+- **Tests:** 6/6 passing (full suite 33/33) — `vendor/bin/pest`
+- **Files changed:** 3 (3 new)
+  - `database/migrations/2026_01_01_000005_create_gmb_pay_webhook_events_table.php` (new)
+  - `src/Models/WebhookEvent.php` (new)
+  - `tests/Persistence/WebhookEventTest.php` (new)
+- **Lines:** +148 / -0
+- **Complexity:** Low — single table, single model. The only subtlety is the namespace clash with the DTO
+- **Notes:**
+  - **Namespace clash (intentional):** `Africs\GmbPay\Models\WebhookEvent` is the DB row, `Africs\GmbPay\DataObjects\WebhookEvent` is the DTO sent to listeners. F07/F08/F09 will need to import both with aliases — keep them separate; the DTO never holds an `id`, the model never holds raw provider headers
+  - SQLite (test driver) treats multiple NULL `provider_event_id` values as distinct in the unique index — test 6 codifies this so the controller can safely insert rows for providers that don't send an event id without colliding
+  - `received_at` is a separate column from `created_at` because retries / backfills may set received_at to the original delivery time; tests assert Carbon round-trip on the literal value, not the column default
+  - Index on `type` is cheap to add now and unblocks future "list all `charge.failed` in the last 24h" queries without a backfill migration
+
 ## F04 — Payouts migration + Payout model ✓
 - **Tests:** 5/5 passing (full suite 27/27) — `vendor/bin/pest`
 - **Files changed:** 3 (3 new)
