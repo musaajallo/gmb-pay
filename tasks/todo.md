@@ -1,45 +1,44 @@
 # TODO
 
-## Active: F07 — Webhook persistence + dedup
+## Active: F08 — UpdateChargeFromWebhook listener
 
-**Goal:** `WebhookController::handle()` writes a `gmb_pay_webhook_events` row before dispatching `WebhookReceived`. A duplicate delivery (same `driver` + `provider_event_id`) returns 200 and does not dispatch the event a second time.
+**Goal:** When `WebhookReceived` carries a `charge.*` event, find the matching `gmb_pay_charges` row by `(driver, provider_reference)` and update its status. No-op if no row matches (provider may emit events for charges this app didn't initiate).
 
 ### Steps
 
-1. **RED — write the test first** at `tests/Webhook/WebhookPersistenceTest.php`:
-   - Hit `POST /gmb-pay/webhook/modempay` with a JSON body whose parsed event has `provider_event_id=evt_123`. In demo mode signature passes.
-   - Assert response is 200, a `gmb_pay_webhook_events` row exists with that id, and `WebhookReceived` was dispatched once
-   - Re-post the same body; assert still 200, **still one row**, and `WebhookReceived` dispatched **only once total**
-   - Post a payload with no `provider_event_id` (DTO returns `null`); assert a row is written and the event dispatched (every null insert is treated as new)
-2. **DTO change** — add `?string $providerEventId = null` to `Africs\GmbPay\DataObjects\WebhookEvent`. Keep it last so existing callers don't break.
-3. **AbstractDriver::parseWebhook()** — extract `id` from the request payload (best-effort) and pass to the DTO. Drivers can override.
-4. **Controller change** — after signature validation and parse:
-   - Look up an existing row by `(driver, provider_event_id)` when `providerEventId` is non-null. If found, return 200 without dispatching.
-   - Otherwise insert a `Models\WebhookEvent` row with `driver`, `provider_event_id`, `type=$dto->type`, `payload=$dto->payload`, `received_at=now()`.
-   - Dispatch `WebhookReceived` and return 200.
-5. Run `vendor/bin/pest` — confirm green and no other tests regressed
-6. Tick F07 in `tasks/all-features.md`, append to `tasks/done.md`, commit `F07: webhook persistence + dedup`
+1. **RED — write the test first** at `tests/Webhook/UpdateChargeFromWebhookTest.php`:
+   - Persist a `Charge` with `driver=modempay`, `provider_reference=ch_provider_1`, `status=Pending`
+   - Dispatch `WebhookReceived` carrying a DTO with `type=ChargeSucceeded`, `driver=modempay`, `providerReference=ch_provider_1`
+   - Assert the charge is reloaded and `status=Succeeded`
+   - Repeat with `ChargeFailed` and `ChargeCancelled` mapping to `Failed` / `Cancelled`
+   - Assert no-op when there's no matching row (no exception, charge count unchanged)
+   - Assert the listener ignores `refund.*` and `unknown` events
+2. **Listener** at `src/Listeners/UpdateChargeFromWebhook.php`:
+   - `__invoke(WebhookReceived $event)`. Switch on `$event->event->type` for the three charge cases; map to `ChargeStatus`. Return early otherwise
+   - Lookup: `Charge::where('driver', $dto->driver)->where('provider_reference', $dto->providerReference)->first()`. Skip if null or `providerReference` is null
+   - Update via `update(['status' => ...])` — Eloquent will respect the enum cast
+3. **Wiring** — for this feature, register the listener manually inside the test's `defineEnvironment()` or via `Event::listen` in a setup hook. F10 will auto-register from the service provider.
+4. Run `vendor/bin/pest`. Tick F08, append done entry, commit `F08: UpdateChargeFromWebhook listener`
 
 ### Files this feature will touch
 
-- `src/DataObjects/WebhookEvent.php` (modified — add `providerEventId`)
-- `src/Drivers/AbstractDriver.php` (modified — populate `providerEventId` from payload)
-- `src/Http/Controllers/WebhookController.php` (modified — persist + dedup)
-- `tests/Webhook/WebhookPersistenceTest.php` (new)
+- `src/Listeners/UpdateChargeFromWebhook.php` (new)
+- `tests/Webhook/UpdateChargeFromWebhookTest.php` (new)
 - `tasks/all-features.md` (check the box)
 - `tasks/done.md` (append entry)
 
 ### Done criteria
 
-- Duplicate POST with same `provider_event_id` returns 200, writes one row, dispatches once
-- Null `provider_event_id` always writes a fresh row (SQLite NULLs are distinct)
 - All Pest tests pass
+- The three `charge.*` types map to the right `ChargeStatus`
+- A webhook with no matching local charge does not throw and does not create a row
+- Refund and unknown events are no-ops for this listener
 
 ### Notes for the implementer
 
-- Use `Event::fake([WebhookReceived::class])` and `Event::assertDispatchedTimes(...)` to count dispatches without breaking other listeners
-- Persisting **before** dispatch is intentional: if a queued listener fails later, the raw event is still on disk for replay
-- Don't add a hash check on the payload yet — `(driver, provider_event_id)` is the unit of dedup. Two distinct events with the same id from one provider would already be a provider bug
+- Use enum-to-status mapping in a private match expression — keep the public surface a single `__invoke`
+- Don't update `provider_reference` or `amount_minor` from the webhook — the local row is the source of truth for those; the webhook only confirms terminal state. F37/F38 (subscription advance) will handle period rolling separately
+- The test should NOT call `Event::fake()` here — it needs the listener to actually fire. Use the controller route or call `event(new WebhookReceived(...))` directly
 
 ---
 

@@ -14,5 +14,6 @@ final readonly class WebhookEvent
         public ?string $reference = null,
         public ?string $providerReference = null,
         public array $payload = [],
+        public ?string $providerEventId = null,
     ) {}
 }

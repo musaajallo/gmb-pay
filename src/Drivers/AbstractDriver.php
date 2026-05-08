@@ -100,10 +100,19 @@ abstract class AbstractDriver implements PaymentDriver
 
     public function parseWebhook(Request $request): WebhookEvent
     {
+        $payload = (array) $request->all();
+        $rawType = is_string($payload['type'] ?? null) ? $payload['type'] : null;
+        $type = $rawType !== null
+            ? (WebhookEventType::tryFrom($rawType) ?? WebhookEventType::Unknown)
+            : WebhookEventType::Unknown;
+
+        $providerEventId = is_string($payload['id'] ?? null) ? $payload['id'] : null;
+
         return new WebhookEvent(
-            type: WebhookEventType::Unknown,
+            type: $type,
             driver: $this->name(),
-            payload: (array) $request->all(),
+            payload: $payload,
+            providerEventId: $providerEventId,
         );
     }
 

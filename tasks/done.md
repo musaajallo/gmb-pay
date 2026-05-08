@@ -2,6 +2,22 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F07 — Webhook persistence + dedup ✓
+- **Tests:** 3/3 passing (full suite 41/41) — `vendor/bin/pest`
+- **Files changed:** 4 (1 new, 3 modified)
+  - `tests/Webhook/WebhookPersistenceTest.php` (new)
+  - `src/DataObjects/WebhookEvent.php` (modified — added `providerEventId` property)
+  - `src/Drivers/AbstractDriver.php` (modified — `parseWebhook` now extracts `id`+`type` from payload)
+  - `src/Http/Controllers/WebhookController.php` (modified — dedup lookup + row insert before dispatch)
+- **Lines:** +73 / -8
+- **Complexity:** Medium — touches DTO, abstract driver, controller, and introduces the controller's first DB write
+- **Notes:**
+  - `parseWebhook` now best-effort extracts `id` (provider event id) and maps `type` via `WebhookEventType::tryFrom()`. Drivers can still override entirely; AbstractDriver's behavior is just the safe default
+  - Dedup short-circuit returns `{"received": true, "duplicate": true}` so providers see a 200 and stop retrying. Rows are never inserted twice for the same `(driver, provider_event_id)`
+  - Persisting **before** dispatch is intentional: queued listener failures still leave the raw event on disk for replay (F08+ will use this)
+  - `Event::fake([WebhookReceived::class])` in the test isolates dispatches without breaking other listeners — important once F10 auto-registers `UpdateChargeFromWebhook`/`UpdateRefundFromWebhook`
+  - Null `provider_event_id` payloads always insert a fresh row (SQLite NULLs are distinct in unique indexes); test 3 codifies this
+
 ## F06 — Idempotency keys migration + IdempotencyKey model ✓
 - **Tests:** 5/5 passing (full suite 38/38) — `vendor/bin/pest`
 - **Files changed:** 3 (3 new)

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Africs\GmbPay\Http\Controllers;
 
+use Africs\GmbPay\Events\WebhookReceived;
 use Africs\GmbPay\Exceptions\InvalidWebhookSignatureException;
 use Africs\GmbPay\Exceptions\UnknownDriverException;
+use Africs\GmbPay\Models\WebhookEvent as WebhookEventRow;
 use Africs\GmbPay\PaymentManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,7 +33,25 @@ class WebhookController extends Controller
 
         $event = $resolved->parseWebhook($request);
 
-        event(new \Africs\GmbPay\Events\WebhookReceived($event));
+        if ($event->providerEventId !== null) {
+            $exists = WebhookEventRow::where('driver', $driver)
+                ->where('provider_event_id', $event->providerEventId)
+                ->exists();
+
+            if ($exists) {
+                return response()->json(['received' => true, 'duplicate' => true]);
+            }
+        }
+
+        WebhookEventRow::create([
+            'driver' => $driver,
+            'provider_event_id' => $event->providerEventId,
+            'type' => $event->type,
+            'payload' => $event->payload,
+            'received_at' => now(),
+        ]);
+
+        WebhookReceived::dispatch($event);
 
         return response()->json(['received' => true]);
     }
