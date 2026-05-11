@@ -1,6 +1,46 @@
 # TODO
 
-## Active: F25 — gmb_pay_plans migration + Plan model
+## Active: F26 — gmb_pay_subscriptions migration + Subscription model
+
+**Goal:** A subscription ties a Billable to a Plan via a chosen `driver`, tracks its lifecycle in `status` and its current period in `current_period_*`, and supports trials + scheduled cancellation. F31 layers in helper methods (`cancel()`, `resume()`, `markPastDue()`, etc.) — F26 is pure persistence.
+
+### Steps
+
+1. **SubscriptionStatus enum** at `src/Enums/SubscriptionStatus.php`:
+   - Backed string enum: `Incomplete='incomplete'`, `Active='active'`, `PastDue='past_due'`, `Canceled='canceled'`, `Paused='paused'`
+2. **RED — write the test first** at `tests/Persistence/SubscriptionTest.php`:
+   - Test (a): migrations create `gmb_pay_subscriptions` with the columns from the spec
+   - Test (b): persists a Subscription with billable polymorphic link, plan_id, driver, status, period dates, casts on read (`status` to enum, `cancel_at_period_end` to bool, `current_period_start/end` and `canceled_at` and `trial_ends_at` to datetimes)
+   - Test (c): `billable()` morphTo and `plan()` belongsTo resolve correctly
+   - Test (d): index on `(status, current_period_end)` exists (cheap to verify via `Schema::hasIndex` if available, or just `Schema::hasColumn` confirmation; the F25 prophylactic-index pattern carries over)
+3. **Migration** `database/migrations/2026_01_01_000008_create_gmb_pay_subscriptions_table.php`:
+   - `id`, `morphs('billable')`, `foreignId('plan_id')->constrained('gmb_pay_plans')->cascadeOnDelete()`, `string('driver', 32)`, `string('status', 32)`, `timestamp('current_period_start')->nullable()`, `timestamp('current_period_end')->nullable()`, `boolean('cancel_at_period_end')->default(false)`, `timestamp('canceled_at')->nullable()`, `timestamp('trial_ends_at')->nullable()`, `timestamps()`
+   - Composite index on `(status, current_period_end)` to keep the F34 cycle command's "active and due" lookup cheap
+4. **Subscription model** `src/Models/Subscription.php`:
+   - Casts: `status` → `SubscriptionStatus::class`, `cancel_at_period_end` → `bool`, `current_period_start`/`current_period_end`/`canceled_at`/`trial_ends_at` → `datetime`
+   - Relations: `billable(): MorphTo` and `plan(): BelongsTo`
+5. Run `vendor/bin/pest`. Tick F26, append done.md entry, commit `F26: gmb_pay_subscriptions migration + Subscription model`
+
+### Files this feature will touch
+
+- `src/Enums/SubscriptionStatus.php` (new)
+- `database/migrations/2026_01_01_000008_create_gmb_pay_subscriptions_table.php` (new)
+- `src/Models/Subscription.php` (new)
+- `tests/Persistence/SubscriptionTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the four new cases above)
+- Subscription persists and loads with proper casts; polymorphic billable + belongsTo plan both round-trip
+- The `(status, current_period_end)` composite index is present (will be exercised by F34's `where('status', Active)->where('current_period_end', '<=', now())`)
+
+### Notes for the implementer
+
+- No `quantity` or `unit_amount_minor` here — those live on `SubscriptionItem` rows (F27). A subscription describes the relationship; items describe what's being charged
+- Status defaults to `incomplete` when first created (F29 creates the row before kicking off the first cycle); no DB default needed because F29 will set it explicitly
+- Tests can lean on `FakeBillable` again as the polymorphic owner — same fixture used by F01's customer test
 
 **Goal:** Open Phase F by laying down the `gmb_pay_plans` table and `Plan` Eloquent model. A Plan defines a recurring billable: `slug` (unique stable id), `name` (human-readable), `amount_minor`, `currency`, `interval` (`day|week|month|year`), `interval_count`, `trial_days`, `active`. No relationships at this layer — F26 wires Subscriptions to Plan via FK; F29 (`Billable::subscribeToPlan`) is where Plans get used.
 

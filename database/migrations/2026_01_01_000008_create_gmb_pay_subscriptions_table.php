@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('gmb_pay_subscriptions', function (Blueprint $table) {
+            $table->id();
+            $table->morphs('billable');
+            $table->foreignId('plan_id')
+                ->constrained('gmb_pay_plans')
+                ->cascadeOnDelete();
+            $table->string('driver', 32);
+            $table->string('status', 32);
+            $table->timestamp('current_period_start')->nullable();
+            $table->timestamp('current_period_end')->nullable();
+            $table->boolean('cancel_at_period_end')->default(false);
+            $table->timestamp('canceled_at')->nullable();
+            $table->timestamp('trial_ends_at')->nullable();
+            $table->timestamps();
+
+            $table->index(
+                ['status', 'current_period_end'],
+                'gmb_pay_subscriptions_status_period_end_index'
+            );
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('gmb_pay_subscriptions');
+    }
+};

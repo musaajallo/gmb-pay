@@ -2,6 +2,22 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F26 — gmb_pay_subscriptions migration + Subscription model ✓
+- **Tests:** 3/3 passing (full suite 141/141) — `vendor/bin/pest`
+- **Files changed:** 4 (4 new)
+  - `src/Enums/SubscriptionStatus.php` (new — `incomplete | active | past_due | canceled | paused`)
+  - `database/migrations/2026_01_01_000008_create_gmb_pay_subscriptions_table.php` (new)
+  - `src/Models/Subscription.php` (new — `billable()` morphTo + `plan()` belongsTo)
+  - `tests/Persistence/SubscriptionTest.php` (new)
+- **Lines:** +160 / -0
+- **Complexity:** Low — single table, two relations, five casts
+- **Notes:**
+  - **Composite index on `(status, current_period_end)`** is the prophylactic index for F34's `gmb-pay:cycle` command (`where('status', Active)->where('current_period_end', '<=', now())`). MySQL/Postgres both pick it for the compound predicate
+  - **Period timestamps cast to `datetime`** (Carbon) so F32+ can do `current_period_end->copy()->addMonth()` arithmetic without re-parsing
+  - **`startOfSecond()` in the test** matters because SQLite/MySQL only persist seconds (no sub-second). Without it, `equalTo()` would fail on a roundtrip mismatch of microseconds
+  - **No DB default for `status`** because F29 (`subscribeToPlan`) sets it explicitly to `Incomplete` on create — leaving the column nullable would muddle the contract. Migration declares it non-null
+  - F27 (subscription items) and F28 (invoices) next, both pure persistence. F29 is the first business-logic feature in Phase F
+
 ## F25 — gmb_pay_plans migration + Plan model ✓
 - **Tests:** 4/4 passing (full suite 138/138) — `vendor/bin/pest`
 - **Files changed:** 4 (4 new)
