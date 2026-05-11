@@ -2,6 +2,22 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F28 — gmb_pay_invoices migration + Invoice model ✓
+- **Tests:** 4/4 passing (full suite 149/149) — `vendor/bin/pest`
+- **Files changed:** 5 (4 new, 1 modified)
+  - `src/Enums/InvoiceStatus.php` (new — `open | paid | uncollectible | void`)
+  - `database/migrations/2026_01_01_000010_create_gmb_pay_invoices_table.php` (new)
+  - `src/Models/Invoice.php` (new — `subscription()`, `charge()` belongsTo + datetime casts)
+  - `src/Models/Subscription.php` (modified — `invoices()` HasMany)
+  - `tests/Persistence/InvoiceTest.php` (new)
+- **Lines:** +175 / -0
+- **Complexity:** Low — single table, two FKs with different on-delete behaviours
+- **Notes:**
+  - **Two different on-delete behaviours**: `subscription_id → cascadeOnDelete()` (kill the sub, kill its invoices), `charge_id → nullOnDelete()` (kill a charge but keep the invoice history with a null charge link). Test (d) locks both branches by deleting in two stages
+  - **Currency is frozen on the invoice**, not pulled from the parent Plan at read time. If a Plan's currency ever changes, historical invoices keep what they billed in. (Plans shouldn't change currency in practice, but the schema doesn't have to enable the drift)
+  - **Index on `(status, period_end)`** for the F34 `gmb-pay:cycle` open-invoice sweep, same prophylactic-index pattern F02/F26 used
+  - F29 (`Billable::subscribeToPlan`) is next — first business-logic feature in Phase F. F25–F28 gave us all the persistence we need to back it
+
 ## F27 — gmb_pay_subscription_items migration + SubscriptionItem model ✓
 - **Tests:** 4/4 passing (full suite 145/145) — `vendor/bin/pest`
 - **Files changed:** 4 (3 new, 1 modified, +1 fixture tweak)

@@ -1,6 +1,44 @@
 # TODO
 
-## Active: F27 — gmb_pay_subscription_items migration + SubscriptionItem model
+## Active: F28 — gmb_pay_invoices migration + Invoice model
+
+**Goal:** Each subscription cycle produces an Invoice. The Invoice carries the period dates and snapshots the amount due for that cycle. When the cycle's Charge succeeds, the Invoice flips to `paid` and links to the `charge_id`. F32 (`InitiateRecurringChargeJob`) creates Invoices; F37 (webhook listener extension) marks them `paid`.
+
+### Steps
+
+1. **InvoiceStatus enum** at `src/Enums/InvoiceStatus.php`:
+   - `Open='open'`, `Paid='paid'`, `Uncollectible='uncollectible'`, `Void='void'`
+2. **RED — write the test first** at `tests/Persistence/InvoiceTest.php`:
+   - Test (a): table + columns (`subscription_id`, `charge_id` nullable, `amount_minor`, `currency`, `status`, `period_start`, `period_end`, timestamps)
+   - Test (b): persists with casts — `status` to enum, `amount_minor` to int, `period_start`/`period_end` to datetimes; `charge_id` accepts null
+   - Test (c): `subscription()` belongsTo + `charge()` belongsTo + `Subscription::invoices()` hasMany resolve
+   - Test (d): deleting parent Subscription cascades to invoices; deleting linked Charge **nulls** `charge_id` (`nullOnDelete`) rather than cascading
+3. **Migration** `database/migrations/2026_01_01_000010_create_gmb_pay_invoices_table.php`:
+   - `id`, `foreignId('subscription_id')->constrained('gmb_pay_subscriptions')->cascadeOnDelete()`, `foreignId('charge_id')->nullable()->constrained('gmb_pay_charges')->nullOnDelete()`, `unsignedBigInteger('amount_minor')`, `string('currency', 3)`, `string('status', 32)`, `timestamp('period_start')`, `timestamp('period_end')`, `timestamps()`
+   - Index on `(status, period_end)` for the cycle command's open-invoice sweep
+4. **Invoice model** + add `invoices(): HasMany` to `Subscription`
+5. Run pest, tick, done, commit `F28: gmb_pay_invoices migration + Invoice model`
+
+### Files this feature will touch
+
+- `src/Enums/InvoiceStatus.php` (new)
+- `database/migrations/2026_01_01_000010_create_gmb_pay_invoices_table.php` (new)
+- `src/Models/Invoice.php` (new)
+- `src/Models/Subscription.php` (modified — `invoices()` hasMany)
+- `tests/Persistence/InvoiceTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the four new cases above)
+- Cascading delete from Subscription → Invoices is enforced (FK test exercises real cascade thanks to F27's `foreign_key_constraints` test config)
+- Deleting a Charge that was linked to an Invoice nulls `invoice.charge_id` rather than dropping the invoice — paid history survives a Charge purge
+
+### Notes for the implementer
+
+- `currency` is duplicated on Invoice (already on the parent Plan) to freeze it at invoice-time. If a Plan's currency ever changes, historical invoices keep their original
+- F32 will create invoices in `Open`; F37 flips to `Paid` on `charge.succeeded` webhook
 
 **Goal:** Many-to-one child of Subscription that records `quantity` and `unit_amount_minor`. The subscription's total per cycle is `sum(items.quantity * items.unit_amount_minor)`. For the common single-plan case there will be exactly one item per subscription.
 
