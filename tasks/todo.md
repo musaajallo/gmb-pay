@@ -1,46 +1,43 @@
 # TODO
 
-## Active: F10 — Auto-register webhook listeners
+## Active: F11 — IdempotencyStore service
 
-**Goal:** The package should make `UpdateChargeFromWebhook` and `UpdateRefundFromWebhook` fire on `WebhookReceived` automatically — no manual `Event::listen` in user code. Gated by `gmb-pay.events.auto_register` so consumers can opt out and wire their own.
+**Goal:** A small service that wraps any `(driver, key) → Model` operation so a repeated call with the same key returns the prior model instead of running the callback again. F12 will plug this into `PaymentManager::charge()` so `ChargeRequest::$idempotencyKey` short-circuits double-submits; F11 just delivers the primitive.
 
 ### Steps
 
-1. **RED — write the test first** at `tests/Webhook/AutoRegisterListenersTest.php`:
-   - **Top of file**: override the test environment to set `gmb-pay.events.auto_register=true` (override `defineEnvironment` in a per-file extension OR use `tap($app['config'])->set(...)` in a `beforeEach`)
-   - Persist a charge in `Pending`. POST `/gmb-pay/webhook/modempay` with payload `{"id":"evt_auto","type":"charge.succeeded","provider_reference":"prov_auto"}` — but the AbstractDriver doesn't currently extract `provider_reference` from the payload. So the test should dispatch `WebhookReceived` directly OR the driver must learn to pull `provider_reference` (do that here)
-   - Assert charge is `Succeeded` after the dispatch — without registering listeners manually
-   - Add a second test that flips `auto_register=false` and asserts the charge stays `Pending`
-2. **AbstractDriver::parseWebhook()** — additionally extract `provider_reference` from the payload when present. Keep extraction permissive: accept either `provider_reference` or `reference` keys
-3. **Service provider boot()** — when `gmb-pay.events.auto_register` is truthy, call:
-   ```php
-   Event::listen(WebhookReceived::class, UpdateChargeFromWebhook::class);
-   Event::listen(WebhookReceived::class, UpdateRefundFromWebhook::class);
-   ```
-4. **Config default** — add `'events' => ['auto_register' => true]` to `config/gmb-pay.php`
-5. Run `vendor/bin/pest`. Tick F10, append done entry, commit `F10: auto-register webhook listeners`
+1. **RED — write the test first** at `tests/Idempotency/IdempotencyStoreTest.php`:
+   - First call with a fresh `(driver, key)` runs the callback, returns the Eloquent model it produced, and persists a single `IdempotencyKey` row pointing at that model (`target_type` + `target_id` populated)
+   - Second call with the same `(driver, key)` does **not** run the callback again and returns the same model the first call returned (same primary key, equal via `Model::is()`)
+   - Same key across two different drivers runs the callback independently for each driver
+   - Different keys under the same driver run the callback independently
+   - Confirm fails first (no class yet)
+2. **Implement** `src/Idempotency/IdempotencyStore.php`:
+   - Namespace `Africs\GmbPay\Idempotency`
+   - Public method `remember(string $driver, string $key, callable $callback): \Illuminate\Database\Eloquent\Model`
+   - Read existing row; if it has both `target_type` and `target_id`, resolve and return `$row->target`
+   - Otherwise run the callback, `updateOrCreate` the `IdempotencyKey` row with `target_type = $target::class` and `target_id = $target->getKey()`, return the target
+   - Keep it small. No singleton binding, no transaction, no lockForUpdate yet — F12 / a later hardening pass can add those once we know how it gets called
+3. Run `vendor/bin/pest`. Tick F11 in `tasks/all-features.md`, append a metadata block to `tasks/done.md` matching the existing format, commit as `F11: IdempotencyStore service`
 
 ### Files this feature will touch
 
-- `config/gmb-pay.php` (modified — add `events.auto_register`)
-- `src/GmbPayServiceProvider.php` (modified — `Event::listen` calls in boot)
-- `src/Drivers/AbstractDriver.php` (modified — also extract `provider_reference`)
-- `tests/Webhook/AutoRegisterListenersTest.php` (new)
+- `src/Idempotency/IdempotencyStore.php` (new)
+- `tests/Idempotency/IdempotencyStoreTest.php` (new)
 - `tasks/all-features.md` (check the box)
 - `tasks/done.md` (append entry)
 
 ### Done criteria
 
-- All Pest tests pass
-- With auto-register on (default), a webhook POST advances the charge status
-- With auto-register off, a webhook POST writes the row but does not advance the charge
-- Existing F08/F09 tests continue to pass (their explicit `Event::listen` is now redundant but not harmful — leave as-is)
+- All Pest tests pass (full suite green, including the four new cases above)
+- A repeat `remember()` with the same `(driver, key)` proves the callback isn't re-invoked (use a counter in the test closure)
+- No new dependency on `PaymentManager` or any driver — `IdempotencyStore` is callable on its own
 
 ### Notes for the implementer
 
-- Use `Event::listen` from the `Illuminate\Support\Facades\Event` facade. Don't invent a new "Listener registration class"
-- Idempotency: it's fine to register twice (Laravel handles dup listeners by class). But guard with `if (! $this->app->bound(...))` only if you measure a real problem — premature
-- Tests overriding env: per-file extension. See `tests/TestCase.php` — define a child class in the same file that flips the config value, or use `Config::set(...)` in `beforeEach`. Avoid a global flip in `TestCase` so default tests still represent the package default
+- The `IdempotencyKey` model already has a `morphTo` relation called `target` (see `src/Models/IdempotencyKey.php`) — use it to hydrate the prior model
+- The table's `(driver, key)` unique constraint is the long-term concurrency guarantee; F11 doesn't have to exercise it, F12 should
+- The callback's return type is `Illuminate\Database\Eloquent\Model`, not `ChargeResult`. F12 will be responsible for the ChargeResult ↔ Charge bridge
 
 ---
 

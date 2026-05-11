@@ -2,6 +2,21 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F11 — IdempotencyStore service ✓
+- **Tests:** 4/4 passing (full suite 58/58) — `vendor/bin/pest`
+- **Files changed:** 2 (2 new)
+  - `src/Idempotency/IdempotencyStore.php` (new — `Africs\GmbPay\Idempotency\IdempotencyStore::remember(driver, key, callback): Model`)
+  - `tests/Idempotency/IdempotencyStoreTest.php` (new)
+- **Lines:** +130 / -0
+- **Complexity:** Low — single read, single conditional `updateOrCreate`, returns the morphTo target
+- **Notes:**
+  - First non-Model, non-Driver class in the package; gave it its own `Africs\GmbPay\Idempotency` namespace so F12 (and future siblings like a key-hasher / context object) have a stable home
+  - `remember()` returns `Illuminate\Database\Eloquent\Model` — the callback's job is to produce one. F12 will be the place where `ChargeResult` → `Charge` model is bridged before this is called
+  - Existing-row check requires **both** `target_type` and `target_id` to be non-null. That lets a future "two-phase" flow (insert key first → run callback → back-fill target) recover cleanly: a half-written row is treated as "not yet executed" and the callback re-runs. F11 itself doesn't write half-rows but the read path is already shaped for it
+  - No transaction or `lockForUpdate` yet — concurrency hardening is deferred to F12 where it matters (PaymentManager::charge). The `(driver, key)` unique index in `gmb_pay_idempotency_keys` is still the long-term backstop
+  - Container binding deferred too: F11 instantiates fresh in tests; F12 can decide whether to bind as a singleton when it wires it into PaymentManager
+  - Test helper rename: `tests/Persistence/RefundTest.php` already defines a global Pest helper called `makeCharge`. Pest's `__DIR__` sweep loads both files into the same process so a duplicate top-level function fatally errors. Renamed mine to `makeIdempotencyTestCharge`
+
 ## F10 — Auto-register webhook listeners ✓
 - **Tests:** 2/2 passing (full suite 54/54) — `vendor/bin/pest`
 - **Files changed:** 5 (1 new, 4 modified)
