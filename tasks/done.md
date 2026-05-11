@@ -2,6 +2,21 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F20 — Billable trait — gmbPayCustomers + gmbPayCharges ✓
+- **Tests:** 4/4 passing (full suite 116/116) — `vendor/bin/pest`
+- **Files changed:** 3 (1 new, 2 modified)
+  - `src/Concerns/Billable.php` (new — two relations: `gmbPayCustomers(): MorphMany` and `gmbPayCharges(): HasManyThrough`)
+  - `tests/Fixtures/Models/FakeBillable.php` (modified — `use Billable;`)
+  - `tests/Billable/BillableTraitTest.php` (new)
+- **Lines:** +110 / -2
+- **Complexity:** Low — two relation methods, one fixture line
+- **Notes:**
+  - **Spec phrasing was loose** — `all-features.md` said `gmbPayCharges()` is a "morphMany", but the schema only puts a polymorphic `billable_*` pair on the `gmb_pay_customers` table, not on `gmb_pay_charges`. Charges link to a Billable transitively through `customer_id`, so the correct relation is `HasManyThrough(Charge, Customer)`. Updated the `all-features.md` line text to reflect this. Adding polymorphic columns to `gmb_pay_charges` would let us flatten the relation but the migration cost isn't worth it pre-1.0
+  - **`->where('gmb_pay_customers.billable_type', $this->getMorphClass())`** prevents two different Billable classes (e.g. `User` and `Organization`) with overlapping numeric primary keys from cross-contaminating each other's charges. The morph-class filter is applied at the relation level, so eager-loaded collections also stay scoped
+  - **Orphan charges** (`customer_id = null`) are *intentionally* invisible to `gmbPayCharges()` — those represent one-shot phone payments where the merchant didn't create a Customer record. They're still in `gmb_pay_charges` and reachable by direct query; just not from a Billable. Test (c) locks this
+  - **Trait is side-effect-free** — no boot hooks, no observer registration, no DB writes. `use Billable` just attaches the two relation methods. Safe to add to existing `User` models without migrations or behavior change
+  - F21 (next) will add `createGmbPayCustomer()` to this trait. F22 will wrap `GmbPay::charge()` and persist Charge rows linked to the Billable's Customer — at that point the asymmetry F12 left (no Charge persistence on the no-idempotency-key path) gets resolved through this Billable layer
+
 ## F19 — ModempayDriver::parseWebhook for wrapped payloads ✓
 - **Tests:** 13/13 passing (full suite 112/112) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)

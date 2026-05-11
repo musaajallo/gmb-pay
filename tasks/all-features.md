@@ -82,7 +82,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 
 ### Phase E — Billable trait (Cashier-style)
 
-- [ ] **F20** — `Africs\GmbPay\Concerns\Billable` trait: `gmbPayCustomers()` morphMany relationship, `gmbPayCharges()` morphMany
+- [x] **F20** — `Africs\GmbPay\Concerns\Billable` trait: `gmbPayCustomers()` morphMany relationship, `gmbPayCharges()` hasManyThrough Customer (schema has no direct polymorphic billable on charges; see done entry)
 - [ ] **F21** — `Billable::createGmbPayCustomer(?string $driver = null, array $opts = [])` — creates local customer row (provider customer creation deferred until a driver actually needs it)
 - [ ] **F22** — `Billable::charge(int $amountMinor, string $currency, array $opts)` — wraps `GmbPay::driver(...)->charge(...)`, persists `Charge` row, returns `ChargeResult`
 - [ ] **F23** — `Billable::findChargeByReference(string $reference): ?Charge`

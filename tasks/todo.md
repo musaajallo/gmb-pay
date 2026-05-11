@@ -1,6 +1,49 @@
 # TODO
 
-## Active: F19 — ModempayDriver::parseWebhook for wrapped payloads
+## Active: F20 — Billable trait (gmbPayCustomers + gmbPayCharges)
+
+**Goal:** Open Phase E by giving consuming apps a one-liner (`use Africs\GmbPay\Concerns\Billable`) on their `User` (or any Eloquent model) that exposes the relevant gmb-pay rows. F20 is just the relation surface — F21 adds the customer-creation helper, F22 wraps charging, F23 looks up by reference, F24 wraps refunds.
+
+**Schema reminder (already shipped in F01/F02):**
+
+- `gmb_pay_customers` has `morphs('billable')` (`billable_type` + `billable_id`) plus a unique on `(billable_type, billable_id, driver)`
+- `gmb_pay_charges` has `customer_id` (nullable, `nullOnDelete`) — no direct polymorphic link to a Billable. Orphan one-shot charges (no customer_id) won't be reachable from `gmbPayCharges()` and that's intentional
+
+### Steps
+
+1. **RED — write the test first** at `tests/Billable/BillableTraitTest.php`:
+   - Use the existing `Africs\GmbPay\Tests\Fixtures\Models\FakeBillable` (the fixture already lives at `tests/Fixtures/Models/FakeBillable.php`); add `use Billable;` to it in step 2
+   - Test (a): `$billable->gmbPayCustomers` returns all `Customer` rows where `billable_type === FakeBillable::class` and `billable_id === $billable->id`. Create two customers under two drivers, assert count=2
+   - Test (b): `$billable->gmbPayCharges` traverses customers and returns the linked charges. Create one customer + one charge linked to it; assert count=1 and the reference matches
+   - Test (c): orphan charges (`customer_id = null`) do **not** appear in `gmbPayCharges()`. Insert one, assert relation still empty
+   - Test (d): two `FakeBillable` rows are fully isolated — `$b1->gmbPayCharges` only sees `$b1`'s customers' charges, never `$b2`'s
+2. **Implement** `src/Concerns/Billable.php`:
+   - Namespace `Africs\GmbPay\Concerns`
+   - Trait `Billable`
+   - `gmbPayCustomers(): MorphMany` — `$this->morphMany(Customer::class, 'billable')`
+   - `gmbPayCharges(): HasManyThrough` — `Billable → Customer → Charge` via `customer_id`. Add `->where('gmb_pay_customers.billable_type', $this->getMorphClass())` so two different Billable classes with the same numeric id don't cross-pollinate
+3. **Update the fixture** `tests/Fixtures/Models/FakeBillable.php` to `use Africs\GmbPay\Concerns\Billable;` — this is what the new test exercises and is the canonical demo of how a consumer's `User` model adopts the trait
+4. Run `vendor/bin/pest`. Tick F20, append done.md entry, commit `F20: Billable trait — gmbPayCustomers + gmbPayCharges`
+
+### Files this feature will touch
+
+- `src/Concerns/Billable.php` (new)
+- `tests/Fixtures/Models/FakeBillable.php` (modified — `use Billable;`)
+- `tests/Billable/BillableTraitTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the four new cases above)
+- The trait is **side-effect-free** — adding `use Billable` to a model just exposes two relations; no boot hooks, no observer registration, no DB writes on attach
+- Existing persistence tests (`tests/Persistence/CustomerTest.php`, etc.) keep passing — the trait is additive
+
+### Notes for the implementer
+
+- The spec line says "`gmbPayCharges()` morphMany" but the schema only has `customer_id` on charges, not a polymorphic billable. `HasManyThrough` is the correct relation type — note this divergence in the done entry
+- The `->where('gmb_pay_customers.billable_type', $this->getMorphClass())` matters: two distinct billable models with overlapping primary keys would otherwise mix charges. `getMorphClass()` returns the morph alias if you've registered one, else the FQCN — both work here
+- F22 will likely want a `chargeRecord()` or similar helper on the trait so a one-shot charge writes a Charge row + sets `customer_id` when one exists. Don't add it in F20 — keep this feature focused
 
 **Goal:** Override `AbstractDriver::parseWebhook()` on `ModempayDriver` so the wrapped `{"event": "<type>", "payload": {...}}` shape Modempay actually sends gets decoded correctly — populating `WebhookEvent::$type` from the event string, `providerReference` from the inner `payment_intent_id` (matches what F14 stores in `Charge::$provider_reference` so F08/F09 listeners reconcile), and `providerEventId` as a composite `"<event>:<payload.id>"` so two distinct lifecycle events for the same resource (e.g. `charge.created` then `charge.succeeded`) don't collide on F07's `(driver, provider_event_id)` unique index.
 
