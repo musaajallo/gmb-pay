@@ -90,7 +90,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 
 ### Phase F — Plans & subscriptions
 
-- [ ] **F25** — Migration + model `gmb_pay_plans` (`slug`, `name`, `amount_minor`, `currency`, `interval` enum {day, week, month, year}, `interval_count`, `trial_days`, `active`)
+- [x] **F25** — Migration + model `gmb_pay_plans` (`slug`, `name`, `amount_minor`, `currency`, `interval` enum {day, week, month, year}, `interval_count`, `trial_days`, `active`)
 - [ ] **F26** — Migration + model `gmb_pay_subscriptions` (`billable_type`, `billable_id`, `plan_id`, `driver`, `status` enum {incomplete, active, past_due, canceled, paused}, `current_period_start`, `current_period_end`, `cancel_at_period_end`, `canceled_at`, `trial_ends_at`)
 - [ ] **F27** — Migration + model `gmb_pay_subscription_items` (`subscription_id`, `quantity`, `unit_amount_minor`)
 - [ ] **F28** — Migration + model `gmb_pay_invoices` (`subscription_id`, `charge_id` nullable, `amount_minor`, `currency`, `status` enum {open, paid, uncollectible, void}, `period_start`, `period_end`)

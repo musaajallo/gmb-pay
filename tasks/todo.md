@@ -1,6 +1,46 @@
 # TODO
 
-## Active: F24 — Billable::refund() — drive + persist a Refund row
+## Active: F25 — gmb_pay_plans migration + Plan model
+
+**Goal:** Open Phase F by laying down the `gmb_pay_plans` table and `Plan` Eloquent model. A Plan defines a recurring billable: `slug` (unique stable id), `name` (human-readable), `amount_minor`, `currency`, `interval` (`day|week|month|year`), `interval_count`, `trial_days`, `active`. No relationships at this layer — F26 wires Subscriptions to Plan via FK; F29 (`Billable::subscribeToPlan`) is where Plans get used.
+
+### Steps
+
+1. **PlanInterval enum** at `src/Enums/PlanInterval.php`:
+   - `case Day = 'day'; case Week = 'week'; case Month = 'month'; case Year = 'year';`
+2. **RED — write the test first** at `tests/Persistence/PlanTest.php` (mirrors F02 ChargeTest's shape):
+   - Test (a): migrations create `gmb_pay_plans` with columns `id, slug, name, amount_minor, currency, interval, interval_count, trial_days, active, created_at, updated_at`
+   - Test (b): can persist a Plan with all required fields and read them back; `amount_minor` casts to `int`, `interval` casts to `PlanInterval`, `active` casts to `bool`, `trial_days` casts to `int`
+   - Test (c): `unique(slug)` is enforced — duplicate slug raises `QueryException`
+   - Test (d): default `interval_count = 1` and `trial_days = 0` and `active = true` when not provided (set in migration `->default()`)
+3. **Migration** `database/migrations/2026_01_01_000007_create_gmb_pay_plans_table.php`:
+   - `id`, `string('slug')->unique()`, `string('name')`, `unsignedBigInteger('amount_minor')`, `string('currency', 3)`, `string('interval', 16)`, `unsignedInteger('interval_count')->default(1)`, `unsignedInteger('trial_days')->default(0)`, `boolean('active')->default(true)`, `timestamps()`
+4. **Plan model** `src/Models/Plan.php`:
+   - `protected $table = 'gmb_pay_plans';`, `protected $guarded = [];`
+   - `$casts = ['amount_minor' => 'int', 'interval' => PlanInterval::class, 'interval_count' => 'int', 'trial_days' => 'int', 'active' => 'bool']`
+   - No relationships yet (F26 adds the `subscriptions(): HasMany` if needed)
+5. Run `vendor/bin/pest`. Tick F25, append done.md entry, commit `F25: gmb_pay_plans migration + Plan model`
+
+### Files this feature will touch
+
+- `src/Enums/PlanInterval.php` (new)
+- `database/migrations/2026_01_01_000007_create_gmb_pay_plans_table.php` (new)
+- `src/Models/Plan.php` (new)
+- `tests/Persistence/PlanTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the four new cases above)
+- Plan can be created via `Plan::create(['slug' => 'pro-monthly', 'name' => 'Pro', 'amount_minor' => 50000, 'currency' => 'GMD', 'interval' => 'month'])` — defaults fill in the rest
+- Unique constraint on slug fires on duplicate
+
+### Notes for the implementer
+
+- The interval value goes on the DB as the backed string (`'day' / 'week' / 'month' / 'year'`). Enum cast handles the round-trip
+- `trial_days` is on the Plan rather than the Subscription so a single change to the plan affects all future subs; existing subs already have `trial_ends_at` (F26) frozen at the time of subscribe
+- F25 is pure persistence — no behavior, no relations, no business logic. F26–F31 build on top
 
 **Goal:** `$billable->refund($reference, ?$amountMinor)` finds the local `Charge`, calls `$driver->refund()`, persists a linked `Refund` row, returns the `RefundResult`. F16's Modempay-side block means real (non-demo) Modempay refunds still bubble up `BadMethodCallException` from `AbstractDriver::notImplemented()` — F24 ships the Billable surface that becomes useful the moment a driver-side refund API exists.
 

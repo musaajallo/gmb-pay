@@ -2,6 +2,22 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F25 — gmb_pay_plans migration + Plan model ✓
+- **Tests:** 4/4 passing (full suite 138/138) — `vendor/bin/pest`
+- **Files changed:** 4 (4 new)
+  - `src/Enums/PlanInterval.php` (new — `day | week | month | year` backed string enum)
+  - `database/migrations/2026_01_01_000007_create_gmb_pay_plans_table.php` (new)
+  - `src/Models/Plan.php` (new)
+  - `tests/Persistence/PlanTest.php` (new)
+- **Lines:** +130 / -0
+- **Complexity:** Low — single table, single model, four casts; no relationships
+- **Notes:**
+  - **Defaults baked in at the DB layer** — `interval_count = 1`, `trial_days = 0`, `active = true`. Test (d) locks all three. Lets a minimal `Plan::create(['slug' => 'x', 'name' => 'X', 'amount_minor' => 1000, 'currency' => 'GMD', 'interval' => Month])` succeed
+  - **`interval` cast to `PlanInterval`** so reads come back typed. The DB column stores the backed string `'month'` etc.; the enum cast round-trips it
+  - **Index on `active`** added now to keep the cycle command's `where active = true` lookups cheap when subscriptions land (mirrors the same prophylactic index F02 added to `gmb_pay_charges.status`)
+  - **`trial_days` lives on the Plan**, not the Subscription — a change to the plan affects future subs; existing subs already froze their `trial_ends_at` at subscribe-time (F26 wires that)
+  - Opens **Phase F**. F26 (Subscriptions schema), F27 (SubscriptionItems), F28 (Invoices) are next — three more pure-persistence features before F29's first business-logic helper
+
 ## F24 — Billable::refund — drive + persist a Refund row ✓
 - **Tests:** 4/4 passing (full suite 134/134) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)
