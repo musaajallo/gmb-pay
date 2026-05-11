@@ -137,7 +137,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - [ ] **F56** — `.github/workflows/tests.yml` — matrix PHP {8.3, 8.4} × Laravel {11, 12, 13}, runs Pint, PHPStan, Pest
 - [ ] **F57** — `pint.json` (Laravel Pint config — preset `laravel`, custom rules can come later)
 - [ ] **F58** — `phpstan.neon` (Larastan, level 6 to start, can ratchet up)
-- [ ] **F59** — `README.md` expansion: full usage examples for charges, subscriptions, custom driver registration, webhook signing in tests
+- [x] **F59** — `README.md` expansion: full usage examples for charges, subscriptions, custom driver registration, webhook signing in tests
 - [ ] **F60** — `CONTRIBUTING.md`: TDD expectation, commit message format, how to add a new driver
 - [ ] **F61** — `CHANGELOG.md` (Keep a Changelog format) + first `0.1.0-alpha` tag once F01–F45 land
 

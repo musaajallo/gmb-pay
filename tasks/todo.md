@@ -1,6 +1,10 @@
 # TODO
 
-## Active: F38 — RetryChargeFromWebhook listener (charge.failed → past_due + dispatch retry)
+## Active: F59 — README expansion
+
+Comprehensive rewrite covering install, Billable trait API, one-shot charges, subscriptions, webhooks (auto-registered listeners table), refunds (with Modempay-block note), demo mode, Modempay-specific quirks, troubleshooting. Replaces the scaffold-era README. No tests — this is docs.
+
+Commit `F59: README expansion`.
 
 **Goal:** Mirror of F37 for the failure path. When `charge.failed` arrives for a Charge tied to a subscription's invoice, mark the subscription `PastDue` and dispatch `RetryFailedChargeJob`. F33's retry chain handles the backoff and eventual cancellation. Closes Phase G.
 

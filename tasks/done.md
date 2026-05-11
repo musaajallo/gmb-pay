@@ -2,6 +2,18 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F59 — README expansion ✓
+- **Tests:** N/A (docs feature, full suite 186/186 unchanged)
+- **Files changed:** 1 (1 modified)
+  - `README.md` (rewrite — replaces the scaffold-era 100-line version)
+- **Lines:** +220 / -75
+- **Complexity:** Trivial — docs only
+- **Notes:**
+  - **Single source of truth for first-use.** Covers: install, env vars, the Billable trait surface (the main API), one-shot charges, subscriptions (Plan + subscribeToPlan + cycle scheduling), webhooks (auto-registered listeners table), refunds, demo mode, Modempay-specific quirks (network field, signature header, intent_secret vs UUID), troubleshooting, "what's not yet implemented" with the F16 + Wave/Waychit blockers called out
+  - **Fixed the syntax typo** in the old webhook listener example (`Event::listen(WebhookReceived::function ...)` → proper `Event::listen(WebhookReceived::class, function ...)`)
+  - **Updated supported-gateways table** — Modempay is now Live (was "Stub (demo only)"), with the refund-blocked caveat surfaced inline
+  - **Pointers to `tasks/all-features.md` and `tasks/done.md`** at the bottom so the README stays concise while the deep history remains discoverable
+
 ## F38 — RetryChargeFromWebhook listener — closes Phase G ✓
 - **Tests:** 3/3 passing (full suite 186/186) — `vendor/bin/pest`
 - **Files changed:** 3 (2 new, 1 modified)
