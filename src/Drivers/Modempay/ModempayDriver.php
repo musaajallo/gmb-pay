@@ -8,9 +8,11 @@ use Africs\GmbPay\DataObjects\ChargeRequest;
 use Africs\GmbPay\DataObjects\ChargeResult;
 use Africs\GmbPay\DataObjects\PayoutRequest;
 use Africs\GmbPay\DataObjects\PayoutResult;
+use Africs\GmbPay\DataObjects\WebhookEvent;
 use Africs\GmbPay\Drivers\AbstractDriver;
 use Africs\GmbPay\Enums\ChargeStatus;
 use Africs\GmbPay\Enums\PayoutStatus;
+use Africs\GmbPay\Enums\WebhookEventType;
 use Africs\GmbPay\Exceptions\GmbPayException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
@@ -130,6 +132,43 @@ class ModempayDriver extends AbstractDriver
             providerReference: isset($data['id']) && is_string($data['id']) ? $data['id'] : null,
             raw: $data,
         );
+    }
+
+    public function parseWebhook(Request $request): WebhookEvent
+    {
+        $body = (array) $request->all();
+
+        $event = $body['event'] ?? null;
+        $inner = $body['payload'] ?? null;
+
+        if (! is_string($event) || $event === '' || ! is_array($inner)) {
+            return parent::parseWebhook($request);
+        }
+
+        $resourceId = is_string($inner['id'] ?? null) ? $inner['id'] : null;
+        $providerReference = is_string($inner['payment_intent_id'] ?? null)
+            ? $inner['payment_intent_id']
+            : null;
+
+        return new WebhookEvent(
+            type: $this->webhookEventTypeFromModempay($event),
+            driver: $this->name(),
+            providerReference: $providerReference,
+            payload: $body,
+            providerEventId: $resourceId !== null ? sprintf('%s:%s', $event, $resourceId) : null,
+        );
+    }
+
+    private function webhookEventTypeFromModempay(string $event): WebhookEventType
+    {
+        return match ($event) {
+            'charge.succeeded' => WebhookEventType::ChargeSucceeded,
+            'charge.cancelled', 'payment_intent.cancelled' => WebhookEventType::ChargeCancelled,
+            'charge.expired', 'payment_intent.expired' => WebhookEventType::ChargeFailed,
+            'transfer.succeeded' => WebhookEventType::PayoutSucceeded,
+            'transfer.failed', 'transfer.cancelled', 'transfer.reversed' => WebhookEventType::PayoutFailed,
+            default => WebhookEventType::Unknown,
+        };
     }
 
     public function webhookSignatureValid(Request $request): bool

@@ -1,6 +1,78 @@
 # TODO
 
-## Active: F18 — Modempay webhook signature verification (HMAC-SHA512)
+## Active: F19 — ModempayDriver::parseWebhook for wrapped payloads
+
+**Goal:** Override `AbstractDriver::parseWebhook()` on `ModempayDriver` so the wrapped `{"event": "<type>", "payload": {...}}` shape Modempay actually sends gets decoded correctly — populating `WebhookEvent::$type` from the event string, `providerReference` from the inner `payment_intent_id` (matches what F14 stores in `Charge::$provider_reference` so F08/F09 listeners reconcile), and `providerEventId` as a composite `"<event>:<payload.id>"` so two distinct lifecycle events for the same resource (e.g. `charge.created` then `charge.succeeded`) don't collide on F07's `(driver, provider_event_id)` unique index.
+
+**Sample wire payload (literally from `https://docs.modempay.com/documentation/core/webhooks`):**
+
+```json
+{
+  "event": "charge.succeeded",
+  "payload": {
+    "id": "23419194-7324-4c2b-a74b-d8fba736e692",
+    "payment_intent_id": "...",
+    "amount": 5000,
+    "currency": "GMD",
+    "status": "successful",
+    "...": "..."
+  }
+}
+```
+
+There is no separate top-level webhook event id (e.g. no `evt_...` like Stripe). Modempay's payload.id is the resource id, not a webhook event id — hence the composite dedup key.
+
+### Modempay → WebhookEventType map
+
+| Modempay event | Our enum |
+|---|---|
+| `charge.succeeded` | `ChargeSucceeded` |
+| `charge.cancelled` | `ChargeCancelled` |
+| `charge.expired` | `ChargeFailed` |
+| `payment_intent.cancelled` | `ChargeCancelled` |
+| `payment_intent.expired` | `ChargeFailed` |
+| `transfer.succeeded` | `PayoutSucceeded` |
+| `transfer.failed` | `PayoutFailed` |
+| `transfer.cancelled` | `PayoutFailed` |
+| `transfer.reversed` | `PayoutFailed` |
+| everything else (`customer.*`, `charge.created`, `charge.updated`, `transfer.flagged`, etc.) | `Unknown` |
+
+### Steps
+
+1. **RED — write the test first** at `tests/Drivers/Modempay/ModempayWebhookParseTest.php`:
+   - Test (a): new-shape `charge.succeeded` payload → `WebhookEvent` with `type === ChargeSucceeded`, `providerReference === payload.payment_intent_id`, `providerEventId === "charge.succeeded:<payload.id>"`, `payload === $entireBody`
+   - Test (b): event-mapping data set covering at least `charge.expired`, `payment_intent.expired`, `transfer.succeeded`, `transfer.failed`, `customer.created` (→ Unknown)
+   - Test (c): end-to-end — POST a new-shape `charge.succeeded` body to `/gmb-pay/webhook/modempay` (in demo mode so signature passes); assert a `WebhookEvent` row with the composite `provider_event_id` is persisted and a pre-existing pending Charge (matched by `payment_intent_id`) advances to `Succeeded` via the F10 auto-registered listener
+   - Test (d): **flat shape backward-compat** — POSTing the old `{"id":"evt_x","type":"charge.succeeded"}` shape still parses via `AbstractDriver::parseWebhook()` (the F07/F08/F09/F10 existing tests rely on this — don't break them). Assert the resulting `WebhookEvent` row has `provider_event_id === "evt_x"`
+2. **Implement** `ModempayDriver::parseWebhook(Request $request): WebhookEvent`:
+   - If `$body['event']` is a non-empty string AND `$body['payload']` is an array → wrapped branch:
+     - `$event = $body['event']; $inner = $body['payload'];`
+     - `$type = $this->webhookEventTypeFromModempay($event);` (private match-table helper, returns `WebhookEventType::Unknown` for anything not listed)
+     - `$resourceId = is_string($inner['id'] ?? null) ? $inner['id'] : null;`
+     - `$providerEventId = $resourceId !== null ? "{$event}:{$resourceId}" : null;`
+     - `$providerReference = is_string($inner['payment_intent_id'] ?? null) ? $inner['payment_intent_id'] : null;`
+     - Return `new WebhookEvent(type, driver: $this->name(), providerReference, payload: $body, providerEventId)`
+   - Else fall through to `parent::parseWebhook($request)` for backward compat (flat shape used by existing tests + generic providers)
+3. Run `vendor/bin/pest`. Tick F19, append done.md entry, commit `F19: ModempayDriver::parseWebhook for wrapped payloads`. With F19 done, Phase D closes (except the blocked F16).
+
+### Files this feature will touch
+
+- `src/Drivers/Modempay/ModempayDriver.php` (modified — adds `parseWebhook()` override + private `webhookEventTypeFromModempay()` helper)
+- `tests/Drivers/Modempay/ModempayWebhookParseTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the new cases above)
+- Existing `tests/Webhook/WebhookPersistenceTest.php` and `tests/Webhook/AutoRegisterListenersTest.php` (which still POST the flat shape) keep passing untouched
+- End-to-end test (c) proves a real Modempay-shape webhook drives the F08 listener correctly via `payment_intent_id` reconciliation
+
+### Notes for the implementer
+
+- The composite `provider_event_id = "<event>:<payload.id>"` is necessary because Modempay's payload.id is the resource id, not a webhook event id — two distinct lifecycle events for the same charge would otherwise collide on F07's unique index and silently swallow the second event
+- Wrapping detection is the *type* of `payload`, not just its presence — Modempay's `payload` is always an object; if it's anything else (string, missing, scalar), treat the body as flat shape and fall through
+- The "Unknown" cases (`charge.created`, `charge.updated`, `customer.*`, `transfer.flagged`) are intentionally noisy in the persisted row but produce no listener side-effects (F08's listener `match`es only the four meaningful charge events; everything else is a no-op `default => null`)
 
 **Goal:** Override `AbstractDriver::webhookSignatureValid()` on `ModempayDriver` so the existing `WebhookController` path only accepts requests carrying a valid HMAC-SHA512 of the raw body under header `x-modem-signature`. Demo mode keeps returning `true` (parity with AbstractDriver) so tests and local dev don't need real signatures.
 

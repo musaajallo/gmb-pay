@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F19 — ModempayDriver::parseWebhook for wrapped payloads ✓
+- **Tests:** 13/13 passing (full suite 112/112) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Drivers/Modempay/ModempayDriver.php` (modified — adds `parseWebhook()` override + private `webhookEventTypeFromModempay()` match table)
+  - `tests/Drivers/Modempay/ModempayWebhookParseTest.php` (new — 13 cases including an event-mapping data set and an end-to-end POST that drives the F08 listener)
+- **Lines:** +130 / -0
+- **Complexity:** Low — single override + a 10-line `match` table
+- **Notes:**
+  - **Composite `provider_event_id`**: Modempay's webhook payload has no separate webhook event id (only the resource id, `payload.id`, which is the same across the resource's lifecycle). To avoid `(driver, provider_event_id)` collisions when the same resource emits `charge.created` then `charge.succeeded`, we synthesize `provider_event_id = "{event}:{payload.id}"`. The F07 dedup test still proves null `provider_event_id`s are treated as distinct, so legacy webhook bodies (which don't go through this branch) are unaffected
+  - **`provider_reference = payload.payment_intent_id`** — this matches what F14 stores in `Charge::$provider_reference` after creating an intent, so the F08 listener's `where('provider_reference', $dto->providerReference)` lookup reconciles correctly. The end-to-end test (c) proves this loop by POSTing a wrapped `charge.succeeded`, asserting the matching Pending Charge becomes Succeeded
+  - **Backward-compat fall-through**: when the body doesn't have a string `event` *and* an array `payload`, the override calls `parent::parseWebhook($request)` — preserving the F07/F08/F09/F10 controller tests that still POST flat `{"id","type"}` shapes. Test (d) locks this path
+  - **Event mapping aliases**: `payment_intent.cancelled` and `payment_intent.expired` map to the same `WebhookEventType` cases as their `charge.*` siblings (`ChargeCancelled` / `ChargeFailed`) because the two event streams describe the same lifecycle from the merchant's perspective. Same for `transfer.reversed` → `PayoutFailed` (a reversal IS a payment failure after the fact, even if the provider considers it a separate concept)
+  - **Phase D now closed** for everything not blocked. F16 (refund) remains in `tasks/todo.md ## Blocked`; revisit when Modempay exposes a refund endpoint or merchant onboarding clarifies the path
+
 ## F18 — Modempay webhook signature verification (HMAC-SHA512) ✓
 - **Tests:** 5/5 passing (full suite 99/99) — `vendor/bin/pest`
 - **Files changed:** 3 (1 new, 1 modified, 1 plan correction)
