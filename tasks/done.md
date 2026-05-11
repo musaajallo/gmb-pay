@@ -2,6 +2,19 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F35 — gmb-pay:cycle grace-period enforcer ✓
+- **Tests:** 3/3 passing (full suite 179/179) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Console/CycleCommand.php` (modified — second loop scanning PastDue subs)
+  - `tests/Console/CycleGraceTest.php` (new)
+- **Lines:** +120 / -0
+- **Complexity:** Low — single query + `markCanceled()` per row
+- **Notes:**
+  - **`updated_at` as a "PastDue since" proxy** is the v1 design. Works as long as nothing else writes to a PastDue subscription between when F33 marks it and when grace expires. F33's RetryFailedChargeJob is the only writer in the current flow, so this is safe. Documented known limitation: if a future code path (F37 webhook listener on `charge.succeeded` for a stale invoice?) ever touches a PastDue sub before grace, we'd add a dedicated `past_due_since` timestamp column
+  - **Single command run handles both responsibilities** — Active+due → `InitiateRecurringChargeJob` dispatch (F34); PastDue+stale → `markCanceled()` (F35). Test (c) proves they coexist in one `Artisan::call('gmb-pay:cycle')`
+  - **`forceFill(['updated_at' => …])->save()` in the test** is needed because Eloquent normally overwrites `updated_at` on save. The forceFill path is the canonical way to seed time-sensitive state
+  - F36 (schedule docs) is a docs-only feature next; F37/F38 close Phase G with webhook listener extensions
+
 ## F34 — gmb-pay:cycle Artisan command ✓
 - **Tests:** 4/4 passing (full suite 176/176) — `vendor/bin/pest`
 - **Files changed:** 3 (2 new, 1 modified)

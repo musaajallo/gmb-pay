@@ -1,6 +1,44 @@
 # TODO
 
-## Active: F34 — gmb-pay:cycle Artisan command
+## Active: F35 — Grace-period enforcer inside gmb-pay:cycle
+
+**Goal:** Same `gmb-pay:cycle` command, second loop: `PastDue` subscriptions whose `updated_at` is older than `gmb-pay.subscriptions.grace_days` (default 3) get `markCanceled()`. Uses `updated_at` as a proxy for "PastDue since" — see notes for the tradeoff.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Console/CycleGraceTest.php`:
+   - `Bus::fake()`
+   - Test (a): a `PastDue` sub whose `updated_at` is 5 days ago + `grace_days = 3` → after `gmb-pay:cycle`, status flips to `Canceled` and `canceled_at` is set
+   - Test (b): a `PastDue` sub whose `updated_at` is 1 day ago + `grace_days = 3` → after the command, still `PastDue` (within grace)
+   - Test (c): `Active` subs are not affected by the grace loop — combined test with one Active+due (gets a dispatch from F34) and one PastDue+stale (gets canceled from F35); both happen in one command run
+2. **Implement** in `src/Console/CycleCommand::handle()`:
+   - After the existing Active loop, run:
+     ```php
+     $graceDays = (int) config('gmb-pay.subscriptions.grace_days', 3);
+     Subscription::query()
+         ->where('status', SubscriptionStatus::PastDue)
+         ->where('updated_at', '<=', now()->subDays($graceDays))
+         ->each(fn (Subscription $sub) => $sub->markCanceled());
+     ```
+3. Run pest. Tick F35. Done entry. Commit `F35: gmb-pay:cycle grace-period enforcer`
+
+### Files this feature will touch
+
+- `src/Console/CycleCommand.php` (modified — adds second loop)
+- `tests/Console/CycleGraceTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green)
+- A PastDue sub stale by > grace_days is canceled; one within grace stays PastDue
+- Active subs are untouched by the grace loop (test c)
+
+### Notes for the implementer
+
+- **`updated_at` as a "PastDue since" proxy** is the v1 cut. It works as long as nothing else touches the sub after `markPastDue()` — which is true in our current flows (F33's retry exhaustion calls `markPastDue` and is the only thing that should write to it during the past_due window). If a future code path (e.g. F37 webhook listener) ever updates a past_due sub before grace passes, we'd need a dedicated `past_due_since` column. Note in done.md as a known limitation
+- Setting Subscription's `updated_at` directly in tests requires `$sub->forceFill(['updated_at' => now()->subDays(5)])->save()` after creation — Eloquent overwrites it on save unless you force-set
 
 **Goal:** A scheduled command that walks every `Active` Subscription whose `current_period_end <= now()` and dispatches `InitiateRecurringChargeJob` for each. The actual scheduling (e.g. `everyFiveMinutes`) lands in the app's `routes/console.php` per F36's docs; F34 just delivers the command.
 

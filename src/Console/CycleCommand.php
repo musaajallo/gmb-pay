@@ -24,6 +24,15 @@ class CycleCommand extends Command
                 InitiateRecurringChargeJob::dispatch($subscription);
             });
 
+        $graceDays = (int) config('gmb-pay.subscriptions.grace_days', 3);
+
+        Subscription::query()
+            ->where('status', SubscriptionStatus::PastDue)
+            ->where('updated_at', '<=', now()->subDays($graceDays))
+            ->each(function (Subscription $subscription): void {
+                $subscription->markCanceled();
+            });
+
         return self::SUCCESS;
     }
 }
