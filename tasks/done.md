@@ -2,6 +2,22 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F29 — Billable::subscribeToPlan() + InitiateRecurringChargeJob stub ✓
+- **Tests:** 6/6 passing (full suite 155/155) — `vendor/bin/pest`
+- **Files changed:** 3 (2 new, 1 modified)
+  - `src/Jobs/InitiateRecurringChargeJob.php` (new — Queueable stub; `handle()` is intentionally empty pending F32)
+  - `src/Concerns/Billable.php` (modified — adds `subscribeToPlan()`)
+  - `tests/Billable/SubscribeToPlanTest.php` (new — `Bus::fake()`-backed)
+- **Lines:** +170 / -2
+- **Complexity:** Medium — first feature in Phase F that wires persistence, queueing, and trial logic together
+- **Notes:**
+  - **Job stub now, real handler later** — `InitiateRecurringChargeJob` exists with an empty `handle()` so F29 can `::dispatch($subscription)` without runtime errors. F32 will implement the body (build a `ChargeRequest` from the Subscription + Plan, call `$driver->charge()`, create Charge + Invoice rows). The class shape (Queueable, `__construct(public Subscription $subscription)`) is the public contract — don't change it in F32
+  - **Trial computation is `now() + plan->trial_days`** with a 5-second tolerance check in the test to absorb cross-second flakiness. `trial_days = 0` → `null` (no trial), per test (c)
+  - **`Subscription::create()` + `->items()->create()`** in two writes (no transaction). If the item insert fails the orphan Subscription stays. Acceptable for v1 — Subscription validation happens at the migration level (plan_id FK exists, billable polymorphic columns are non-null); a failed item insert would itself be a DB schema bug worth surfacing
+  - **`$subscription->fresh(['items'])`** is returned so the caller can immediately read items without a second query. Costs one extra SELECT but matches the test-friendly shape
+  - **Multiple subs to the same plan are allowed** — Stripe-like. Callers wanting one-sub-per-billable-per-plan should check first
+  - F30 (`subscriptions()` + `subscribed()` helpers) is next — small read-side helpers. F31 (lifecycle helpers) wraps Phase F's business logic
+
 ## F28 — gmb_pay_invoices migration + Invoice model ✓
 - **Tests:** 4/4 passing (full suite 149/149) — `vendor/bin/pest`
 - **Files changed:** 5 (4 new, 1 modified)

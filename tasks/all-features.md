@@ -94,7 +94,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - [x] **F26** — Migration + model `gmb_pay_subscriptions` (`billable_type`, `billable_id`, `plan_id`, `driver`, `status` enum {incomplete, active, past_due, canceled, paused}, `current_period_start`, `current_period_end`, `cancel_at_period_end`, `canceled_at`, `trial_ends_at`)
 - [x] **F27** — Migration + model `gmb_pay_subscription_items` (`subscription_id`, `quantity`, `unit_amount_minor`)
 - [x] **F28** — Migration + model `gmb_pay_invoices` (`subscription_id`, `charge_id` nullable, `amount_minor`, `currency`, `status` enum {open, paid, uncollectible, void}, `period_start`, `period_end`)
-- [ ] **F29** — `Billable::subscribeToPlan(Plan|string $plan, array $opts = [])` — creates Subscription in `incomplete`, dispatches `InitiateRecurringChargeJob` for the first cycle
+- [x] **F29** — `Billable::subscribeToPlan(Plan|string $plan, array $opts = [])` — creates Subscription in `incomplete`, dispatches `InitiateRecurringChargeJob` for the first cycle (job currently a stub; F32 fills its `handle()`)
 - [ ] **F30** — `Billable::subscriptions()` and `Billable::subscribed(?string $planSlug = null)`
 - [ ] **F31** — `Subscription` helpers: `cancel()`, `cancelAtPeriodEnd()`, `resume()`, `onTrial()`, `pastDue()`, `active()`, `markPastDue()`, `markCanceled()`
 

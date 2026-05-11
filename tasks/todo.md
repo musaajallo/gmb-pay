@@ -1,6 +1,52 @@
 # TODO
 
-## Active: F28 — gmb_pay_invoices migration + Invoice model
+## Active: F29 — Billable::subscribeToPlan() + InitiateRecurringChargeJob stub
+
+**Goal:** First business-logic feature in Phase F. `$billable->subscribeToPlan($planOrSlug, $opts)` creates a Subscription in `Incomplete`, attaches one default SubscriptionItem, optionally sets `trial_ends_at`, and dispatches `InitiateRecurringChargeJob` to kick off the first cycle. The job itself is a Queueable stub — F32 will fill in its handle() body.
+
+### Steps
+
+1. **InitiateRecurringChargeJob stub** at `src/Jobs/InitiateRecurringChargeJob.php`:
+   - Standard Laravel Queueable shape: `use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;`
+   - Constructor `__construct(public Subscription $subscription)`
+   - `public function handle(): void {}` — empty for now. F32 fleshes it out
+2. **RED — write the test first** at `tests/Billable/SubscribeToPlanTest.php`:
+   - `Bus::fake()` in `beforeEach` so dispatches are captured
+   - Test (a): pass a `Plan` model → creates a Subscription (`status === Incomplete`, `driver === modempay` from config default, `plan_id` matches) and one `SubscriptionItem` (`unit_amount_minor === $plan->amount_minor`, `quantity === 1`)
+   - Test (b): pass a slug string → resolves Plan from DB
+   - Test (c): plan with `trial_days > 0` → `trial_ends_at` is approximately `now() + trial_days` (within a 5-sec tolerance); plan with `trial_days = 0` → `trial_ends_at` is null
+   - Test (d): an unknown plan slug raises `ModelNotFoundException`
+   - Test (e): `InitiateRecurringChargeJob` is dispatched once with the created Subscription
+   - Test (f): `$opts['driver']` overrides the config default
+3. **Implement** `Billable::subscribeToPlan(Plan|string $plan, array $opts = []): Subscription`:
+   - Resolve Plan: if string, `Plan::where('slug', $plan)->firstOrFail()`
+   - `$driverName = $opts['driver'] ?? config('gmb-pay.default', 'modempay')`
+   - `$trialEndsAt = $plan->trial_days > 0 ? now()->addDays($plan->trial_days) : null`
+   - Create Subscription with `status: SubscriptionStatus::Incomplete`, `driver: $driverName`, `plan_id: $plan->id`, `trial_ends_at: $trialEndsAt`, billable polymorphic columns
+   - Create one SubscriptionItem with `unit_amount_minor: $plan->amount_minor` (quantity defaults to 1)
+   - `InitiateRecurringChargeJob::dispatch($subscription)`
+   - Return the Subscription
+4. Run pest. Tick F29. Done entry. Commit `F29: Billable::subscribeToPlan() + InitiateRecurringChargeJob stub`
+
+### Files this feature will touch
+
+- `src/Jobs/InitiateRecurringChargeJob.php` (new — Queueable stub)
+- `src/Concerns/Billable.php` (modified — adds `subscribeToPlan()`)
+- `tests/Billable/SubscribeToPlanTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green)
+- A subscription with no trial has `trial_ends_at = null`; one with `trial_days = 14` has `trial_ends_at ≈ now() + 14d`
+- The job is dispatched once per subscribe call; not creating it would cause F32 to lose its scheduled work
+
+### Notes for the implementer
+
+- Multiple subscriptions to the same plan are allowed (Stripe-like) — F29 doesn't dedup. Callers who want one-sub-per-billable-per-plan should check via `$billable->gmbPayCustomers`/manual query before calling
+- Subscription starts `Incomplete`; F32 advances to `Active` after the first cycle's Charge succeeds (via the F37 webhook listener extension)
+- Don't set `current_period_start`/`current_period_end` here — F32 sets them when the first charge fires (with the actual provider-confirmed timestamps in mind)
 
 **Goal:** Each subscription cycle produces an Invoice. The Invoice carries the period dates and snapshots the amount due for that cycle. When the cycle's Charge succeeds, the Invoice flips to `paid` and links to the `charge_id`. F32 (`InitiateRecurringChargeJob`) creates Invoices; F37 (webhook listener extension) marks them `paid`.
 
