@@ -6,8 +6,12 @@ namespace Africs\GmbPay\Concerns;
 
 use Africs\GmbPay\DataObjects\ChargeRequest;
 use Africs\GmbPay\DataObjects\ChargeResult;
+use Africs\GmbPay\DataObjects\RefundRequest;
+use Africs\GmbPay\DataObjects\RefundResult;
+use Africs\GmbPay\Exceptions\GmbPayException;
 use Africs\GmbPay\Models\Charge;
 use Africs\GmbPay\Models\Customer;
+use Africs\GmbPay\Models\Refund;
 use Africs\GmbPay\PaymentManager;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -98,5 +102,33 @@ trait Billable
         return $this->gmbPayCharges()
             ->where('gmb_pay_charges.reference', $reference)
             ->first();
+    }
+
+    public function refund(string $reference, ?int $amountMinor = null): RefundResult
+    {
+        $charge = $this->findChargeByReference($reference);
+
+        if ($charge === null) {
+            throw new GmbPayException(
+                "No Charge with reference [{$reference}] found for this Billable."
+            );
+        }
+
+        $driver = app(PaymentManager::class)->driver((string) $charge->driver);
+
+        $result = $driver->refund(new RefundRequest(
+            chargeReference: $reference,
+            amountMinor: $amountMinor,
+        ));
+
+        Refund::create([
+            'charge_id' => $charge->id,
+            'reference' => $result->reference,
+            'provider_reference' => $result->providerReference,
+            'amount_minor' => $result->amountMinor,
+            'status' => $result->status,
+        ]);
+
+        return $result;
     }
 }

@@ -1,6 +1,42 @@
 # TODO
 
-## Active: F23 — Billable::findChargeByReference()
+## Active: F24 — Billable::refund() — drive + persist a Refund row
+
+**Goal:** `$billable->refund($reference, ?$amountMinor)` finds the local `Charge`, calls `$driver->refund()`, persists a linked `Refund` row, returns the `RefundResult`. F16's Modempay-side block means real (non-demo) Modempay refunds still bubble up `BadMethodCallException` from `AbstractDriver::notImplemented()` — F24 ships the Billable surface that becomes useful the moment a driver-side refund API exists.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Billable/BillableRefundTest.php`:
+   - Test (a): demo mode, `$billable->refund('chg_x')` returns a `RefundResult` with `Succeeded` status; persists exactly one `Refund` row with `charge_id` pointing at the matched local Charge
+   - Test (b): partial refund — passing `$amountMinor = 1500` lands as `Refund::amount_minor = 1500`, while the `RefundRequest` carries the same value to the driver. Demo mode echoes whatever the request supplied
+   - Test (c): an unknown or cross-billable reference raises a `GmbPayException` *before* any driver call — uses `findChargeByReference()` as the gate
+   - Test (d): with demo mode **off** and the Modempay driver in play, the call surfaces the underlying `BadMethodCallException` from `AbstractDriver::notImplemented()` (F16 is BLOCKED — when it ships, change this test to assert success). Use `expect(...)->toThrow(BadMethodCallException::class)`
+2. **Implement** `refund(string $reference, ?int $amountMinor = null): RefundResult` in `src/Concerns/Billable.php`:
+   - `$charge = $this->findChargeByReference($reference); if ($charge === null) throw new GmbPayException("No Charge with reference [{$reference}] found for this Billable.");`
+   - `$driver = app(PaymentManager::class)->driver($charge->driver);`
+   - `$result = $driver->refund(new RefundRequest(chargeReference: $reference, amountMinor: $amountMinor));`
+   - `Refund::create(['charge_id' => $charge->id, 'reference' => $result->reference, 'provider_reference' => $result->providerReference, 'amount_minor' => $result->amountMinor, 'status' => $result->status]);`
+   - `return $result;`
+3. Run `vendor/bin/pest`. Tick F24, append done.md entry, commit `F24: Billable::refund() — drive + persist a Refund row`
+
+### Files this feature will touch
+
+- `src/Concerns/Billable.php` (modified — adds `refund()`)
+- `tests/Billable/BillableRefundTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the four new cases above)
+- A missing/cross-billable reference fails fast with `GmbPayException` and **no** Refund row inserted
+- Demo-mode refunds persist a `Refund` row that the F09 webhook listener could later update by `provider_reference` (if/when refund webhooks land)
+
+### Notes for the implementer
+
+- Refund DTO has no `currency` field (currency is inherited from the parent Charge in the schema). Don't try to pass currency to the driver
+- Idempotency on refunds isn't wired through this Billable helper — `RefundRequest::$idempotencyKey` exists in the DTO but no `PaymentManager::refund` equivalent of F12 has been built. Leave that for a later hardening pass when Modempay's refund API surfaces
+- Phase E closes after F24. F25+ open Phase F (Plans & subscriptions). Subscriptions can run end-to-end on the demo driver — no further provider doc-fetches needed for F25–F31
 
 **Goal:** Tiny lookup helper. `$billable->findChargeByReference($ref)` returns the `Charge` model if it belongs to one of this billable's customers, else `null`. Hides the gmbPayCharges()-through-Customer plumbing from the caller.
 

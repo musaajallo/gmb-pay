@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F24 — Billable::refund — drive + persist a Refund row ✓
+- **Tests:** 4/4 passing (full suite 134/134) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Concerns/Billable.php` (modified — adds `refund()`)
+  - `tests/Billable/BillableRefundTest.php` (new)
+- **Lines:** +105 / -0
+- **Complexity:** Low — `findChargeByReference()` + a single driver call + a `Refund::create`
+- **Notes:**
+  - **Billable surface ships now even though F16 is blocked.** Demo-mode refunds work end-to-end against `AbstractDriver::refund()`'s stub. Non-demo against Modempay surfaces `BadMethodCallException` from `AbstractDriver::notImplemented()` — test (d) locks that, so when F16 unblocks the Modempay-side refund endpoint, the F24 test simply flips from "throws BadMethodCallException" to "returns Succeeded RefundResult" without touching the Billable
+  - **Missing/cross-billable reference fails fast** with `GmbPayException` *before* hitting the driver — `findChargeByReference()` is the gate. Test (c) explicitly asserts no `Refund` row is inserted on that path
+  - **Refund schema has no `currency`** (the parent Charge owns currency); the DTO mirrors this. Don't accidentally try to pass currency to the driver — it'll fail at the `RefundRequest` constructor
+  - **Idempotency is not wired here.** `RefundRequest::$idempotencyKey` exists in the DTO but there's no `PaymentManager::refund()` analog of F12. When Modempay's refund endpoint surfaces (post-F16), a follow-up will add the equivalent — for now this Billable helper just drives once and persists once
+  - **Phase E closes** with F20–F24 all shipped. F25 opens Phase F (Plans). Subscription work runs entirely on the demo driver — no more provider docs needed until Wave/Waychit onboarding for F46+
+
 ## F23 — Billable::findChargeByReference ✓
 - **Tests:** 4/4 passing (full suite 130/130) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)

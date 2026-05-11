@@ -86,7 +86,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - [x] **F21** — `Billable::createGmbPayCustomer(?string $driver = null, array $opts = [])` — creates local customer row (provider customer creation deferred until a driver actually needs it)
 - [x] **F22** — `Billable::charge(int $amountMinor, string $currency, array $opts)` — wraps `GmbPay::driver(...)->charge(...)`, persists `Charge` row, returns `ChargeResult`
 - [x] **F23** — `Billable::findChargeByReference(string $reference): ?Charge`
-- [ ] **F24** — `Billable::refund(string $reference, ?int $amountMinor = null)` — fetches charge, calls driver, persists `Refund` row
+- [x] **F24** — `Billable::refund(string $reference, ?int $amountMinor = null)` — fetches charge, calls driver, persists `Refund` row (Billable surface ships now; the Modempay driver-side refund call is still blocked on F16's missing public refund endpoint)
 
 ### Phase F — Plans & subscriptions
 
