@@ -1,6 +1,41 @@
 # TODO
 
-## Active: F33 — RetryFailedChargeJob with backoff + markPastDue
+## Active: F34 — gmb-pay:cycle Artisan command
+
+**Goal:** A scheduled command that walks every `Active` Subscription whose `current_period_end <= now()` and dispatches `InitiateRecurringChargeJob` for each. The actual scheduling (e.g. `everyFiveMinutes`) lands in the app's `routes/console.php` per F36's docs; F34 just delivers the command.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Console/CycleCommandTest.php`:
+   - `Bus::fake()` in `beforeEach`
+   - Test (a): one Active subscription with `current_period_end` in the past → exactly one `InitiateRecurringChargeJob` is dispatched, for that subscription
+   - Test (b): one Active subscription with `current_period_end` in the future → no dispatch
+   - Test (c): subscriptions in non-Active statuses (Canceled, Incomplete, PastDue, Paused) with due periods are skipped
+   - Test (d): command exits with status `0` (success) regardless of how many subs were processed
+2. **Implement** `src/Console/CycleCommand.php`:
+   - `protected $signature = 'gmb-pay:cycle';`
+   - `handle(): int` — query Active subscriptions due now, `each()` dispatches `InitiateRecurringChargeJob`. Return `self::SUCCESS`
+3. **Register** in `src/GmbPayServiceProvider::boot()` — add `CycleCommand::class` to the `$this->commands([...])` list alongside `InstallCommand`
+4. Run pest. Tick F34. Done entry. Commit `F34: gmb-pay:cycle Artisan command`
+
+### Files this feature will touch
+
+- `src/Console/CycleCommand.php` (new)
+- `src/GmbPayServiceProvider.php` (modified — register `CycleCommand`)
+- `tests/Console/CycleCommandTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the four new cases)
+- Only `Active` subs with `current_period_end <= now()` get a dispatch — every other status or future-due sub is silently skipped
+- The composite index `(status, current_period_end)` from F26 backs the query
+
+### Notes for the implementer
+
+- F35 (grace-period enforcer) extends THIS command — when it lands, the same `handle()` will also walk `PastDue` subs and `markCanceled()` if their `updated_at` is older than `grace_days`. Keep `handle()`'s shape so F35 can add a second loop without restructuring
+- `each()` (vs `get()->each()`) chunks lazily — fine for v1 where subs counts are small; if it ever scales, switch to `chunkById()`
 
 **Goal:** A queueable retry wrapper around `InitiateRecurringChargeJob`. On each invocation: try the charge; if it throws, dispatch self again with the next delay from `gmb-pay.subscriptions.retry_backoff_minutes` (defaults `[60, 360, 1440]` minutes — 1h, 6h, 24h); after the schedule is exhausted, mark the Subscription `PastDue` (F35 will move that to `Canceled` if grace days pass).
 

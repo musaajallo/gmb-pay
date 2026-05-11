@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F34 — gmb-pay:cycle Artisan command ✓
+- **Tests:** 4/4 passing (full suite 176/176) — `vendor/bin/pest`
+- **Files changed:** 3 (2 new, 1 modified)
+  - `src/Console/CycleCommand.php` (new — `gmb-pay:cycle`)
+  - `src/GmbPayServiceProvider.php` (modified — register `CycleCommand` alongside `InstallCommand`)
+  - `tests/Console/CycleCommandTest.php` (new — `Bus::fake()`-backed)
+- **Lines:** +130 / -1
+- **Complexity:** Trivial — single query + `each()` dispatch
+- **Notes:**
+  - **Active-only scope** — non-Active statuses (Incomplete/Canceled/PastDue/Paused) skip the command silently. F35 will extend the same `handle()` to walk `PastDue` for grace expiration; the structure stays the same
+  - **F26's composite `(status, current_period_end)` index backs this query** — the prophylactic-index pattern is paying off already
+  - **Idempotency at the dispatch layer**: if the command runs twice in a window before `current_period_end` is rolled, the same sub gets two jobs. The inner `InitiateRecurringChargeJob` will run twice and create duplicate Charge rows. F32 already accepts that — webhook reconciliation (via the `(driver, provider_reference)` unique index) is the eventual dedup. F34's job is to fire; idempotency is a downstream concern
+  - **Schedule documentation** is F36 — telling consumers to register `$schedule->command('gmb-pay:cycle')->everyFiveMinutes()`
+
 ## F33 — RetryFailedChargeJob with backoff schedule ✓
 - **Tests:** 3/3 passing (full suite 172/172) — `vendor/bin/pest`
 - **Files changed:** 2 (2 new)

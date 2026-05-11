@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Africs\GmbPay;
 
+use Africs\GmbPay\Console\CycleCommand;
 use Africs\GmbPay\Console\InstallCommand;
 use Africs\GmbPay\Events\WebhookReceived;
 use Africs\GmbPay\Idempotency\IdempotencyStore;
@@ -52,6 +53,7 @@ class GmbPayServiceProvider extends ServiceProvider
 
             $this->commands([
                 InstallCommand::class,
+                CycleCommand::class,
             ]);
         }
     }
