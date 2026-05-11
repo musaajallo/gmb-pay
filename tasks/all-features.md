@@ -75,7 +75,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - [x] **F13** — `ModempayClient` (Guzzle via `Illuminate\Http\Client`): base URL from config, `Authorization: Bearer {secret_key}` header, JSON content type, configurable timeout, request/response logging when `app()->isLocal()`
 - [x] **F14** — `ModempayDriver::charge()` — POST to the payment-intents endpoint, return `ChargeResult` with `checkoutUrl` populated. Handle 4xx → `GmbPayException`
 - [x] **F15** — `ModempayDriver::verify()` — GET payment-intent by reference, map provider status to `ChargeStatus`
-- [ ] **F16** — `ModempayDriver::refund()` — POST refund, map to `RefundResult`
+- [ ] **F16** — *(BLOCKED — no public refund API)* `ModempayDriver::refund()` — POST refund, map to `RefundResult`
 - [ ] **F17** — `ModempayDriver::payout()` — only if Modempay supports payouts; otherwise throw `BadMethodCallException` with a clear message and remove from contract via capability split (decide at implementation time)
 - [ ] **F18** — `ModempayDriver::webhookSignatureValid()` — HMAC-SHA256 of raw request body using `webhook_secret`, compared in constant time
 - [ ] **F19** — `ModempayDriver::parseWebhook()` — map provider event types (`charge.succeeded`, `charge.cancelled`, etc.) to `WebhookEventType`, extract `provider_event_id`, `provider_reference`
@@ -154,6 +154,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - **F37 and F38 need F08, F28, F32, F33.**
 - **F45 needs F39 + F42–F44.**
 - **F47 is blocked on F46. F49 is blocked on F48. F53–F55 are blocked on the corresponding gateway access.**
+- **F16 is blocked on Modempay** exposing a public refund endpoint. `https://docs.modempay.com/documentation/core/transactions` documents a `refunded` status but no API operation to create one; revisit when merchant onboarding clarifies whether refunds happen via the dashboard or via an undocumented endpoint.
 
 ## When the user resumes
 
