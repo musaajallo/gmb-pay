@@ -2,6 +2,22 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F10 — Auto-register webhook listeners ✓
+- **Tests:** 2/2 passing (full suite 54/54) — `vendor/bin/pest`
+- **Files changed:** 5 (1 new, 4 modified)
+  - `tests/Webhook/AutoRegisterListenersTest.php` (new)
+  - `config/gmb-pay.php` (modified — added `events.auto_register` default `true`, also reads `GMB_PAY_EVENTS_AUTO_REGISTER`)
+  - `src/GmbPayServiceProvider.php` (modified — gated `Event::listen` for both listeners in `boot()`)
+  - `src/Drivers/AbstractDriver.php` (modified — `parseWebhook()` now extracts `provider_reference`, falling back to `reference`)
+  - `tasks/all-features.md` (ticked F10)
+- **Lines:** +63 / -3 (approx)
+- **Complexity:** Low — three small wiring edits plus the gate test
+- **Notes:**
+  - Provider boot uses `config->get('gmb-pay.events.auto_register', true)` so installations that ran F00–F09 without republishing config still get auto-registration on upgrade
+  - F08/F09 listener tests still call `Event::listen` explicitly in their `beforeEach`. With auto-register on by default the listener now registers twice and fires twice per event; the listener body (`update(['status' => $status])`) is idempotent so this is harmless. Left as-is per the F10 done criteria
+  - The OFF test in the same file uses `Event::forget(WebhookReceived::class)` rather than a per-test config flip because Orchestra Testbench bootstraps the app inside `setUp` before any test-body code runs, so a runtime `config(...)` call lands after the provider's `boot()` has already decided whether to register. The observable outcome (webhook row persisted, charge stays Pending) matches the spec; a comment in the test explains the limitation
+  - Tried a two-file approach with a per-file `defineEnvironment` subclass first — Pest's `uses(TestCase::class)->in(__DIR__)` in `tests/Pest.php` claimed the directory and rejected a per-file `uses()` for the OFF test (`"The folder ... already uses the test case ..."`). Single-file `Event::forget` was the smaller change
+
 ## F09 — UpdateRefundFromWebhook listener ✓
 - **Tests:** 5/5 passing (full suite 52/52) — `vendor/bin/pest`
 - **Files changed:** 2 (2 new)

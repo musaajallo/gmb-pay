@@ -15,6 +15,10 @@ return [
         'tolerance_seconds' => 300,
     ],
 
+    'events' => [
+        'auto_register' => env('GMB_PAY_EVENTS_AUTO_REGISTER', true),
+    ],
+
     'drivers' => [
         'modempay' => [
             'public_key' => env('MODEMPAY_PUBLIC_KEY'),

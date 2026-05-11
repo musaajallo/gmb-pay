@@ -107,10 +107,14 @@ abstract class AbstractDriver implements PaymentDriver
             : WebhookEventType::Unknown;
 
         $providerEventId = is_string($payload['id'] ?? null) ? $payload['id'] : null;
+        $providerReference = is_string($payload['provider_reference'] ?? null)
+            ? $payload['provider_reference']
+            : (is_string($payload['reference'] ?? null) ? $payload['reference'] : null);
 
         return new WebhookEvent(
             type: $type,
             driver: $this->name(),
+            providerReference: $providerReference,
             payload: $payload,
             providerEventId: $providerEventId,
         );

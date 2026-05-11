@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Africs\GmbPay;
 
 use Africs\GmbPay\Console\InstallCommand;
+use Africs\GmbPay\Events\WebhookReceived;
+use Africs\GmbPay\Listeners\UpdateChargeFromWebhook;
+use Africs\GmbPay\Listeners\UpdateRefundFromWebhook;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 class GmbPayServiceProvider extends ServiceProvider
@@ -26,6 +30,11 @@ class GmbPayServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(__DIR__ . '/../routes/webhooks.php');
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'gmb-pay');
+
+        if ($this->app['config']->get('gmb-pay.events.auto_register', true)) {
+            Event::listen(WebhookReceived::class, UpdateChargeFromWebhook::class);
+            Event::listen(WebhookReceived::class, UpdateRefundFromWebhook::class);
+        }
 
         if ($this->app->runningInConsole()) {
             $this->publishes([

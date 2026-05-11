@@ -61,7 +61,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - [x] **F07** — `WebhookController::handle()`: persist a `WebhookEvent` row before dispatching the event; ignore (200) duplicates by `(driver, provider_event_id)`
 - [x] **F08** — `UpdateChargeFromWebhook` listener: on `WebhookReceived` with `charge.*` types, update the matching `gmb_pay_charges` row by `provider_reference`
 - [x] **F09** — `UpdateRefundFromWebhook` listener: same pattern for `refund.*` types
-- [ ] **F10** — Auto-register listeners in the service provider (`Event::listen` in `boot()`); add config flag `gmb-pay.events.auto_register` defaulting to `true`
+- [x] **F10** — Auto-register listeners in the service provider (`Event::listen` in `boot()`); add config flag `gmb-pay.events.auto_register` defaulting to `true`
 
 ### Phase C — Idempotency
 
