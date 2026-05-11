@@ -45,6 +45,8 @@ class InstallCommand extends Command
         $this->line('  3. Configure webhook URLs in each provider dashboard:');
         $this->line('       https://your-app.test/' . config('gmb-pay.webhook.route_prefix') . '/{driver}');
         $this->line('  4. (Optional) GMB_PAY_DEMO=true to run with stubbed drivers locally.');
+        $this->line('  5. Schedule the cycle command in routes/console.php:');
+        $this->line("       Schedule::command('gmb-pay:cycle')->everyFiveMinutes();");
 
         return self::SUCCESS;
     }

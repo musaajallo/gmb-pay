@@ -1,6 +1,31 @@
 # TODO
 
-## Active: F35 — Grace-period enforcer inside gmb-pay:cycle
+## Active: F36 — Schedule documentation in InstallCommand
+
+**Goal:** When `gmb-pay:install` finishes, the "Next steps" output points the user at scheduling the cycle command in their `routes/console.php`. Docs-only feature.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Console/InstallCommandTest.php`:
+   - Run `Artisan::call('gmb-pay:install', ['--no-migrate' => true])`; capture `Artisan::output()`; assert it contains the literal string `gmb-pay:cycle` and `everyFiveMinutes` and `routes/console.php`
+2. **Implement** — extend InstallCommand's "Next steps" section with one more line:
+   ```php
+   $this->line('  5. Schedule the cycle command in routes/console.php:');
+   $this->line("       Schedule::command('gmb-pay:cycle')->everyFiveMinutes();");
+   ```
+3. Run pest. Tick F36. Done entry. Commit `F36: install-command schedule hint`
+
+### Files this feature will touch
+
+- `src/Console/InstallCommand.php` (modified — extend Next steps output)
+- `tests/Console/InstallCommandTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- Pest output capture matches the literal scheduling hint
+- The install command still exits successfully end-to-end (`--no-migrate` to avoid running real migrations during the test)
 
 **Goal:** Same `gmb-pay:cycle` command, second loop: `PastDue` subscriptions whose `updated_at` is older than `gmb-pay.subscriptions.grace_days` (default 3) get `markCanceled()`. Uses `updated_at` as a proxy for "PastDue since" — see notes for the tradeoff.
 

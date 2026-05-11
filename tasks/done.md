@@ -2,6 +2,18 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F36 — Install-command schedule hint ✓
+- **Tests:** 1/1 passing (full suite 180/180) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Console/InstallCommand.php` (modified — extends Next-steps output with scheduling guidance)
+  - `tests/Console/InstallCommandTest.php` (new)
+- **Lines:** +20 / -0
+- **Complexity:** Trivial — two `$this->line()` calls + a buffered-output assertion in the test
+- **Notes:**
+  - **Output assertion via `Artisan::output()`** captures everything printed by `vendor:publish` (which runs nested) plus the InstallCommand's own lines. Easier to assert via `toContain(...)` substrings than to mock the full buffer
+  - **`--no-migrate` in the test** skips actually running `migrate` (Orchestra has its own test migration path), so the install command exercises only the publish + print logic
+  - F37/F38 close Phase G with webhook listener extensions
+
 ## F35 — gmb-pay:cycle grace-period enforcer ✓
 - **Tests:** 3/3 passing (full suite 179/179) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)
