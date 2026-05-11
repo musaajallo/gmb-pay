@@ -1,52 +1,46 @@
 # TODO
 
-## Active: F12 — Wire idempotency into PaymentManager::charge()
+## Active: F13 — ModempayClient HTTP wrapper
 
-**Goal:** When a caller passes a `ChargeRequest` with `$idempotencyKey` set, `PaymentManager::charge()` should short-circuit repeat calls — the driver fires exactly once, a single `Charge` row is persisted, and every subsequent call with the same key returns the same `ChargeResult` (reconstructed from the persisted row). When the key is null, behavior is the pure passthrough we have today: no `Charge` row, no `IdempotencyKey` row, no extra persistence. Broader Charge persistence on every call is F22's job via the `Billable` trait.
+**Goal:** A pre-configured HTTP client for Modempay so F14–F19 driver methods can call `$client->request('POST', '/path', $body)` without re-wiring auth, timeouts, or logging. No Modempay endpoint paths are baked in at this layer — those land with each feature (F14 charge, F15 verify, F16 refund, etc).
 
 ### Steps
 
-1. **RED — write the test first** at `tests/PaymentManager/ChargeIdempotencyTest.php`:
-   - With `idempotencyKey: 'order-1'`: call `GmbPay::charge($request)` twice. Assert (a) both returns are `ChargeResult` with the same `reference`, `amountMinor`, `currency`, `status`, `checkoutUrl`; (b) `Charge::count()` is `1`; (c) `IdempotencyKey::where('driver', 'modempay')->where('key', 'order-1')->count()` is `1` with `target_type = Charge::class`
-   - Without `idempotencyKey` (null): one call. Assert `Charge::count()` is still `0` and `IdempotencyKey::count()` is `0` — today's passthrough behavior preserved
-   - With two distinct `idempotencyKey`s under the same driver: two `Charge` rows, two `IdempotencyKey` rows, distinct references
-   - Confirm fails first (no `PaymentManager::charge()` method yet — currently magic-proxied)
-2. **Implement** `src/PaymentManager.php`:
-   - Inject `Africs\GmbPay\Idempotency\IdempotencyStore` via constructor (extend the existing `__construct(Container)`)
-   - Add an explicit method `public function charge(ChargeRequest $request, ?string $driverName = null): ChargeResult`
-   - If `$request->idempotencyKey === null`: `return $this->driver($driverName)->charge($request);` — passthrough
-   - Else: call `IdempotencyStore::remember($driver->name(), $request->idempotencyKey, callback)`. The callback runs the driver and persists a `Charge` row from the result via a private `persistChargeFromResult()` helper. Then build a `ChargeResult` from the returned `Charge` via a private `resultFromCharge()` helper
-3. **Charge ↔ ChargeResult round-trip** (private helpers on `PaymentManager`):
-   - `persistChargeFromResult(string $driver, ChargeRequest $request, ChargeResult $result): Charge`
-     - Writes a Charge row with `reference`, `driver`, `provider_reference`, `amount_minor`, `currency`, `status`, plus `metadata` merging `$request->metadata` with `_gmbpay_checkout_url`, `_gmbpay_failure_reason`, `_gmbpay_raw` so we can reconstruct the DTO losslessly on replay
-   - `resultFromCharge(Charge $charge): ChargeResult`
-     - Rebuilds the DTO; pulls `checkoutUrl`/`failureReason`/`raw` back out of `metadata`
-4. **Service provider** (`src/GmbPayServiceProvider.php`):
-   - Update the `PaymentManager` singleton closure to pass an `IdempotencyStore` instance: `new PaymentManager($app, $app->make(IdempotencyStore::class))`
-   - No need to bind `IdempotencyStore` explicitly — Laravel auto-resolves the concrete class
-5. **PaymentManager docblock**: drop the `@method charge(ChargeRequest $request)` line since `charge` is now a real method. Keep the `verify`/`refund`/`payout` `@method` lines — those stay magic-proxied
-6. Run `vendor/bin/pest`. Tick F12 in `tasks/all-features.md`, append a metadata block to `tasks/done.md`, commit `F12: wire idempotency into PaymentManager::charge()`
+1. **RED — write the test first** at `tests/Drivers/Modempay/ModempayClientTest.php`:
+   - With `Http::fake()`, send a `POST /payment-intents` with body `['amount' => 5000]`. Assert (a) `Authorization: Bearer sk_test_abc123` header is set; (b) `Accept: application/json`; (c) `Content-Type: application/json`; (d) URL resolves to `https://api.modempay.test/payment-intents`; (e) body is sent as JSON (`$req['amount'] === 5000`)
+   - Returns the `Illuminate\Http\Client\Response` so callers can inspect status / body
+   - When `app()->detectEnvironment(fn () => 'local')` is in effect, `Log::spy()` records a `debug` entry for both the request and the response. When the env is `testing` (default), `Log::spy()` records nothing
+   - Confirm fails first (no class yet)
+2. **Implement** `src/Drivers/Modempay/ModempayClient.php`:
+   - Namespace `Africs\GmbPay\Drivers\Modempay`
+   - Constructor: `__construct(private readonly string $baseUrl, private readonly string $secretKey, private readonly int $timeoutSeconds = 30)`
+   - `public function request(string $method, string $path, array $body = []): Response`
+     - Build via `Http::baseUrl($baseUrl)->withToken($secretKey)->acceptJson()->asJson()->timeout($timeoutSeconds)`
+     - Pre-call: if `app()->isLocal()`, `Log::debug('[modempay] request', ['method' => $method, 'path' => $path, 'body' => $body])`
+     - Send via `->send($method, $path, ['json' => $body])`
+     - Post-call: if `app()->isLocal()`, `Log::debug('[modempay] response', ['status' => $response->status(), 'body' => $response->json() ?? $response->body()])`
+     - Return `$response`
+3. Run `vendor/bin/pest`. Tick F13, append done.md entry, commit `F13: ModempayClient HTTP wrapper`
 
 ### Files this feature will touch
 
-- `src/PaymentManager.php` (modified — constructor dep + explicit `charge()` + two private helpers)
-- `src/GmbPayServiceProvider.php` (modified — pass `IdempotencyStore` into the PaymentManager singleton)
-- `tests/PaymentManager/ChargeIdempotencyTest.php` (new)
+- `src/Drivers/Modempay/ModempayClient.php` (new)
+- `tests/Drivers/Modempay/ModempayClientTest.php` (new)
 - `tasks/all-features.md` (check the box)
 - `tasks/done.md` (append entry)
 
 ### Done criteria
 
-- All Pest tests pass (full suite green, including the three new cases above)
-- Existing SmokeTest still passes — `GmbPay::driver('modempay')->charge(...)` (driver-direct) keeps returning a pure DTO with `checkoutUrl` set and writes nothing
-- `GmbPay::charge($request)` with `idempotencyKey` set persists exactly one `Charge` row per key, no matter how many times it's called
+- All Pest tests pass (full suite green, including the new cases above)
+- `ModempayClient` is constructible in isolation — F14 can `new ModempayClient(...)` or resolve via container without any prior service-provider edits in this feature
+- No Modempay endpoint paths exist in the class body; those land with F14+
 
 ### Notes for the implementer
 
-- The `metadata` JSON column on `gmb_pay_charges` is the round-trip vehicle for DTO fields that don't have their own column. Use a `_gmbpay_` prefix on those keys so they don't collide with caller metadata
-- `Charge::$casts` already casts `metadata` to `array` and `status` to `ChargeStatus`, so reads come back typed
-- The `Manager::__call` magic still forwards `verify`/`refund`/`payout` to the default driver — leave that alone
-- Concurrency hardening (`DB::transaction` + `lockForUpdate` in `IdempotencyStore`) is still deferred. Add it in this feature only if a test surfaces a need; otherwise leave a note for a later hardening pass
+- Use the `Illuminate\Support\Facades\Http` facade so `Http::fake()` works in tests
+- `Http::withToken($key)` produces `Authorization: Bearer $key`. Don't roll the header by hand
+- `Log::spy()` returns a spy that records every call to `Log::debug`/`info`/etc. Assert with `Log::shouldHaveReceived('debug')->twice()` (request + response) for the local-env case; `Log::shouldNotHaveReceived('debug')` for the testing-env case
+- Container binding is **deferred to F14**. F13 just delivers the class; F14 will decide whether to bind it as a singleton or build it inside `ModempayDriver::__construct` from the driver config array
 
 ---
 

@@ -72,7 +72,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 
 > Verify all paths and signature scheme against `https://docs.modempay.com` when resuming. The headers below are the *expected* shape based on the public quickstart; treat the doc as authoritative.
 
-- [ ] **F13** — `ModempayClient` (Guzzle via `Illuminate\Http\Client`): base URL from config, `Authorization: Bearer {secret_key}` header, JSON content type, configurable timeout, request/response logging when `app()->isLocal()`
+- [x] **F13** — `ModempayClient` (Guzzle via `Illuminate\Http\Client`): base URL from config, `Authorization: Bearer {secret_key}` header, JSON content type, configurable timeout, request/response logging when `app()->isLocal()`
 - [ ] **F14** — `ModempayDriver::charge()` — POST to the payment-intents endpoint, return `ChargeResult` with `checkoutUrl` populated. Handle 4xx → `GmbPayException`
 - [ ] **F15** — `ModempayDriver::verify()` — GET payment-intent by reference, map provider status to `ChargeStatus`
 - [ ] **F16** — `ModempayDriver::refund()` — POST refund, map to `RefundResult`

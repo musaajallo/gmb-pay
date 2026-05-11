@@ -2,6 +2,19 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F13 — ModempayClient HTTP wrapper ✓
+- **Tests:** 6/6 passing (full suite 67/67) — `vendor/bin/pest`
+- **Files changed:** 2 (2 new)
+  - `src/Drivers/Modempay/ModempayClient.php` (new — `request(method, path, body): Response`)
+  - `tests/Drivers/Modempay/ModempayClientTest.php` (new)
+- **Lines:** +120 / -0
+- **Complexity:** Low — thin wrapper around `Illuminate\Support\Facades\Http`
+- **Notes:**
+  - Returns the raw `Illuminate\Http\Client\Response`. Driver methods (F14+) inspect `->status()` / `->json()` themselves rather than the client doing error mapping — that way each endpoint can decide whether a given 4xx is a `GmbPayException` or a domain-specific state
+  - `app()->isLocal()` gates request/response `Log::debug` lines. `Log::spy()` + `app()->detectEnvironment(fn () => 'local')` in tests proves both branches; in default `testing` env nothing is logged (which is what we want for noisy CI)
+  - `Http::withToken($key)` produces `Authorization: Bearer $key` natively — no manual header construction
+  - Container binding deferred to F14. Whether `ModempayClient` ends up as a singleton or built inside `ModempayDriver::__construct` from the driver config is F14's call; F13 just delivers the class
+
 ## F12 — Wire idempotency into PaymentManager::charge() ✓
 - **Tests:** 3/3 passing (full suite 61/61) — `vendor/bin/pest`
 - **Files changed:** 3 (1 new, 2 modified)
