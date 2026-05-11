@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F31 — Subscription lifecycle helpers — closes Phase F ✓
+- **Tests:** 7/7 passing (full suite 166/166) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Models/Subscription.php` (modified — eight lifecycle methods)
+  - `tests/Persistence/SubscriptionLifecycleTest.php` (new)
+- **Lines:** +180 / -0
+- **Complexity:** Low — eight small methods, no external dependencies
+- **Notes:**
+  - **`markCanceled()` aliases `cancel()`** — same DB effect. The naming difference signals intent (user-initiated vs system-initiated, e.g. F35's grace enforcer) to readers
+  - **`resume()` handles two paths in one call**: from `Canceled` it flips to `Active` and nulls `canceled_at`; from any other status it just clears `cancel_at_period_end`. Callers don't need to branch
+  - **`onTrial()` uses Carbon's `isFuture()`** rather than a manual `>` comparison — handles same-second equality edge case correctly
+  - **`forceFill` over `update`** so the methods work even if Subscription ever picks up `$fillable`. Mass-assignment guards aren't relevant here — these are explicit, audited mutations
+  - **Phase F closes** with F31. 7 features: F25 (Plan), F26 (Subscription), F27 (SubscriptionItem), F28 (Invoice), F29 (subscribeToPlan + job stub), F30 (subscriptions/subscribed), F31 (lifecycle helpers). All seven shipped this session. Phase G opens next: F32 fills in `InitiateRecurringChargeJob::handle()`
+
 ## F30 — Billable::subscriptions() + subscribed() ✓
 - **Tests:** 4/4 passing (full suite 159/159) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)

@@ -1,6 +1,52 @@
 # TODO
 
-## Active: F30 — Billable::subscriptions() and Billable::subscribed()
+## Active: F31 — Subscription lifecycle helpers
+
+**Goal:** Add eight lifecycle methods to the `Subscription` model so callers don't have to know the underlying status enum. Closes Phase F.
+
+### Methods
+
+| Method | Behavior |
+|---|---|
+| `cancel(): self` | `status = Canceled`, `canceled_at = now()`, `cancel_at_period_end = false`. Save. Return `$this` |
+| `cancelAtPeriodEnd(): self` | `cancel_at_period_end = true`. Status unchanged. Save. Return `$this` |
+| `resume(): self` | If `status === Canceled`, flip back to `Active` and null `canceled_at`. Always clear `cancel_at_period_end`. Save. Return `$this` |
+| `onTrial(): bool` | `trial_ends_at !== null && trial_ends_at > now()` |
+| `pastDue(): bool` | `status === PastDue` |
+| `active(): bool` | `status === Active` |
+| `markPastDue(): self` | `status = PastDue`. Save. Return `$this` |
+| `markCanceled(): self` | Alias for `cancel()` — semantically "system-initiated" vs user-initiated cancel. Same DB effect |
+
+### Steps
+
+1. **RED — write the test first** at `tests/Persistence/SubscriptionLifecycleTest.php`:
+   - Test (a): `cancel()` sets status + canceled_at + clears cancel_at_period_end
+   - Test (b): `cancelAtPeriodEnd()` flips the flag without touching status/canceled_at
+   - Test (c): `resume()` from Canceled → Active + nulls canceled_at; from cancel_at_period_end=true → flag cleared, status unchanged (Active)
+   - Test (d): `onTrial()` true when `trial_ends_at` is in the future; false when in past or null
+   - Test (e): `active()`/`pastDue()` reflect the status enum
+   - Test (f): `markPastDue()` and `markCanceled()` change status as documented
+2. **Implement** all eight methods on `src/Models/Subscription.php`
+3. Run pest. Tick F31. Done entry calling out that Phase F closes here. Commit `F31: Subscription lifecycle helpers — closes Phase F`
+
+### Files this feature will touch
+
+- `src/Models/Subscription.php` (modified)
+- `tests/Persistence/SubscriptionLifecycleTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry — Phase F summary)
+
+### Done criteria
+
+- All Pest tests pass (full suite green)
+- Every helper persists its mutations (no in-memory-only changes)
+- `markCanceled()` and `cancel()` produce identical DB state
+
+### Notes for the implementer
+
+- `markCanceled()` aliasing `cancel()` is fine — both produce a "Canceled" subscription. The naming difference signals intent (user-initiated vs system-initiated) to readers; behaviour is identical
+- `resume()` deliberately handles both reactivate-from-Canceled and undo-cancel-at-period-end in one call. Callers don't need to know which state they were in
+- These are model methods (`$sub->cancel()`), not static query helpers. Tests load a Subscription instance, call the method, then `->fresh()` to verify persistence
 
 **Goal:** Two read-side helpers on the `Billable` trait. `subscriptions(): MorphMany` exposes all subscriptions for this billable (matches the existing `gmbPayCustomers`/`gmbPayCharges` style). `subscribed(?string $planSlug = null): bool` returns true when the billable holds at least one `Active` Subscription — optionally scoped to a specific plan slug.
 

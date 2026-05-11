@@ -96,7 +96,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - [x] **F28** — Migration + model `gmb_pay_invoices` (`subscription_id`, `charge_id` nullable, `amount_minor`, `currency`, `status` enum {open, paid, uncollectible, void}, `period_start`, `period_end`)
 - [x] **F29** — `Billable::subscribeToPlan(Plan|string $plan, array $opts = [])` — creates Subscription in `incomplete`, dispatches `InitiateRecurringChargeJob` for the first cycle (job currently a stub; F32 fills its `handle()`)
 - [x] **F30** — `Billable::subscriptions()` and `Billable::subscribed(?string $planSlug = null)`
-- [ ] **F31** — `Subscription` helpers: `cancel()`, `cancelAtPeriodEnd()`, `resume()`, `onTrial()`, `pastDue()`, `active()`, `markPastDue()`, `markCanceled()`
+- [x] **F31** — `Subscription` helpers: `cancel()`, `cancelAtPeriodEnd()`, `resume()`, `onTrial()`, `pastDue()`, `active()`, `markPastDue()`, `markCanceled()`
 
 ### Phase G — Subscription engine
 

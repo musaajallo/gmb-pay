@@ -44,4 +44,63 @@ class Subscription extends Model
     {
         return $this->hasMany(Invoice::class);
     }
+
+    public function cancel(): self
+    {
+        $this->forceFill([
+            'status' => SubscriptionStatus::Canceled,
+            'canceled_at' => now(),
+            'cancel_at_period_end' => false,
+        ])->save();
+
+        return $this;
+    }
+
+    public function cancelAtPeriodEnd(): self
+    {
+        $this->forceFill(['cancel_at_period_end' => true])->save();
+
+        return $this;
+    }
+
+    public function resume(): self
+    {
+        $attributes = ['cancel_at_period_end' => false];
+
+        if ($this->status === SubscriptionStatus::Canceled) {
+            $attributes['status'] = SubscriptionStatus::Active;
+            $attributes['canceled_at'] = null;
+        }
+
+        $this->forceFill($attributes)->save();
+
+        return $this;
+    }
+
+    public function onTrial(): bool
+    {
+        return $this->trial_ends_at !== null && $this->trial_ends_at->isFuture();
+    }
+
+    public function pastDue(): bool
+    {
+        return $this->status === SubscriptionStatus::PastDue;
+    }
+
+    public function active(): bool
+    {
+        return $this->status === SubscriptionStatus::Active;
+    }
+
+    public function markPastDue(): self
+    {
+        $this->forceFill(['status' => SubscriptionStatus::PastDue])->save();
+
+        return $this;
+    }
+
+    public function markCanceled(): self
+    {
+        return $this->cancel();
+    }
 }
