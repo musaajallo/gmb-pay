@@ -1,6 +1,45 @@
 # TODO
 
-## Active: F17 — ModempayDriver::payout() via /v1/transfers
+## Active: F18 — Modempay webhook signature verification (HMAC-SHA512)
+
+**Goal:** Override `AbstractDriver::webhookSignatureValid()` on `ModempayDriver` so the existing `WebhookController` path only accepts requests carrying a valid HMAC-SHA512 of the raw body under header `x-modem-signature`. Demo mode keeps returning `true` (parity with AbstractDriver) so tests and local dev don't need real signatures.
+
+**Spec correction:** The original F18 line says "HMAC-SHA256". Per `https://docs.modempay.com/documentation/core/webhooks`, Modempay actually uses **HMAC-SHA512** with header `x-modem-signature`. F18 implements the SHA512 variant.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Drivers/Modempay/ModempayWebhookSignatureTest.php`:
+   - Helper: `hash_hmac('sha512', $body, $secret)` returns the expected signature
+   - Test (a): a `POST` request carrying the correct `x-modem-signature` for its raw body → `webhookSignatureValid()` returns `true`
+   - Test (b): wrong signature → `false`
+   - Test (c): missing `x-modem-signature` header → `false`
+   - Test (d): empty `webhook_secret` config → `false` (don't accidentally accept random requests in a misconfigured install)
+   - Test (e): demo mode (`gmb-pay.demo_mode = true`) → `true` regardless of header
+2. **Implement** `ModempayDriver::webhookSignatureValid(Request $request): bool`:
+   - Demo branch first
+   - `$secret = $this->config['webhook_secret'] ?? ''` — return `false` if empty
+   - `$provided = $request->header('x-modem-signature')` — return `false` if null
+   - `$computed = hash_hmac('sha512', $request->getContent(), $secret)` — over the **raw** body, not parsed
+   - `return hash_equals($computed, (string) $provided)` — constant-time comparison
+3. Run `vendor/bin/pest`. Tick F18, append done.md entry, commit `F18: Modempay webhook signature verification (HMAC-SHA512)`
+
+### Files this feature will touch
+
+- `src/Drivers/Modempay/ModempayDriver.php` (modified — adds `webhookSignatureValid()` override)
+- `tests/Drivers/Modempay/ModempayWebhookSignatureTest.php` (new)
+- `tasks/all-features.md` (check the box — and update the F18 line text to read HMAC-SHA512)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the new cases above)
+- The driver reads the **raw** body via `$request->getContent()`, never `$request->all()` (parsed JSON canonicalization differs and would break the hash)
+- Constant-time comparison via `hash_equals` is used; no `==` or `===` on the signature strings
+
+### Notes for the implementer
+
+- Build the test request via `Illuminate\Http\Request::create('/gmb-pay/webhook/modempay', 'POST', [], [], [], [], $rawBody)` so `getContent()` returns exactly the bytes you signed. `headers->set('x-modem-signature', $sig)` sets the header
+- F19 (parseWebhook) is next — Modempay's payload is `{"event": "...", "payload": {...}}`, not the flat shape `AbstractDriver::parseWebhook()` assumes. F19 will override
 
 **Goal:** Send mobile-money payouts through Modempay's `POST /v1/transfers` endpoint. Demo mode keeps the AbstractDriver stub; non-demo mode posts a flat (not `data`-wrapped) body and maps the response to a `PayoutResult`. F16 is blocked on Modempay's missing public refund endpoint — F17 keeps moving Phase D forward in the meantime.
 

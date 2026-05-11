@@ -2,6 +2,21 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F18 — Modempay webhook signature verification (HMAC-SHA512) ✓
+- **Tests:** 5/5 passing (full suite 99/99) — `vendor/bin/pest`
+- **Files changed:** 3 (1 new, 1 modified, 1 plan correction)
+  - `src/Drivers/Modempay/ModempayDriver.php` (modified — adds `webhookSignatureValid()` override)
+  - `tests/Drivers/Modempay/ModempayWebhookSignatureTest.php` (new)
+  - `tasks/all-features.md` (corrected F18 line text: HMAC-SHA512, header `x-modem-signature`)
+- **Lines:** +90 / -1
+- **Complexity:** Low — five-line method, straight `hash_hmac` + `hash_equals`
+- **Notes:**
+  - **Spec correction** caught during F15 doc-reading: Modempay uses HMAC-**SHA512** (not SHA256 as the original F18 line claimed) over the raw JSON body, header `x-modem-signature` (no `X-` prefix in the docs, but Laravel header lookups are case-insensitive so either case works). Updated the F18 line in `all-features.md` so a fresh reader sees the right algorithm
+  - **`$request->getContent()` is the raw body** — must be used, not `$request->all()` / `$request->json()->all()`. Laravel's JSON canonicalization strips whitespace and re-encodes, which would change the bytes the hash is computed over and break verification. Test (a) signs and verifies the exact same `$body` string to lock this
+  - **Empty `webhook_secret` returns false** rather than `hash_equals('','x') === false` accidentally accepting empty input. Test (d) protects against a misconfigured install silently accepting any request
+  - **Demo mode parity:** the override still returns `true` in demo to match `AbstractDriver::webhookSignatureValid()` — local dev and tests can replay webhooks without computing signatures
+  - F19 is next: Modempay payload shape is `{"event": "<type>", "payload": {...}}`, not the flat `{"id", "type", ...}` `AbstractDriver::parseWebhook()` currently assumes. The F19 override will re-key onto `payload.id` / event-string / `payload.payment_intent_id` so the F08/F09 listeners reconcile correctly
+
 ## F17 — ModempayDriver::payout() via /v1/transfers ✓
 - **Tests:** 8/8 passing (full suite 94/94) — `vendor/bin/pest`
 - **Files changed:** 3 (1 new, 2 modified)

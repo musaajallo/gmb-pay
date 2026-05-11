@@ -13,6 +13,7 @@ use Africs\GmbPay\Enums\ChargeStatus;
 use Africs\GmbPay\Enums\PayoutStatus;
 use Africs\GmbPay\Exceptions\GmbPayException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class ModempayDriver extends AbstractDriver
@@ -129,6 +130,27 @@ class ModempayDriver extends AbstractDriver
             providerReference: isset($data['id']) && is_string($data['id']) ? $data['id'] : null,
             raw: $data,
         );
+    }
+
+    public function webhookSignatureValid(Request $request): bool
+    {
+        if ($this->isDemo()) {
+            return true;
+        }
+
+        $secret = (string) ($this->config['webhook_secret'] ?? '');
+        if ($secret === '') {
+            return false;
+        }
+
+        $provided = $request->header('x-modem-signature');
+        if (! is_string($provided) || $provided === '') {
+            return false;
+        }
+
+        $computed = hash_hmac('sha512', $request->getContent(), $secret);
+
+        return hash_equals($computed, $provided);
     }
 
     private function statusFromModempayPayout(string $status): PayoutStatus

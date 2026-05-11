@@ -77,7 +77,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - [x] **F15** — `ModempayDriver::verify()` — GET payment-intent by reference, map provider status to `ChargeStatus`
 - [ ] **F16** — *(BLOCKED — no public refund API)* `ModempayDriver::refund()` — POST refund, map to `RefundResult`
 - [x] **F17** — `ModempayDriver::payout()` — only if Modempay supports payouts; otherwise throw `BadMethodCallException` with a clear message and remove from contract via capability split (decide at implementation time)
-- [ ] **F18** — `ModempayDriver::webhookSignatureValid()` — HMAC-SHA256 of raw request body using `webhook_secret`, compared in constant time
+- [x] **F18** — `ModempayDriver::webhookSignatureValid()` — HMAC-**SHA512** of raw request body using `webhook_secret`, compared in constant time (header `x-modem-signature` — Modempay's published algorithm is SHA512, not SHA256 as this line originally said)
 - [ ] **F19** — `ModempayDriver::parseWebhook()` — map provider event types (`charge.succeeded`, `charge.cancelled`, etc.) to `WebhookEventType`, extract `provider_event_id`, `provider_reference`
 
 ### Phase E — Billable trait (Cashier-style)
