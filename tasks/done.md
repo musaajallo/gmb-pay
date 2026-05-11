@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F33 — RetryFailedChargeJob with backoff schedule ✓
+- **Tests:** 3/3 passing (full suite 172/172) — `vendor/bin/pest`
+- **Files changed:** 2 (2 new)
+  - `src/Jobs/RetryFailedChargeJob.php` (new)
+  - `tests/Jobs/RetryFailedChargeJobTest.php` (new — including a throwing-driver shim that swaps the `PaymentManager` binding)
+- **Lines:** +210 / -0
+- **Complexity:** Medium — coordinates F32 reuse + container-binding swap in the test
+- **Notes:**
+  - **Wraps `InitiateRecurringChargeJob` rather than duplicating logic** — `try { (new InitiateRecurring…)->handle(); } catch (...)`. F32's cycle work stays the single source of truth; F33 only owns retry decisioning
+  - **Exhaustion check is `attempt > count(backoffs)`** — `attempt=1..count` are valid invocations; `attempt=count+1` is the "give up" sentinel. Test (a) uses `attempt=4` against a 3-element backoff to lock that
+  - **Throwing-driver shim in the test** binds an anonymous PaymentManager (with a `driver()` method) to the container. The anonymous payment driver throws on `charge()`, no-ops the rest. This is the right shape for any future "what if the provider is down" test
+  - **Delay assertion is loose** (`$job->delay !== null`) — Laravel's queued-job delay isn't always a Carbon at Bus::fake() capture time, sometimes it's already serialized to seconds. The looser check still proves a delay was attached without coupling the test to internal representation
+  - F34 (`gmb-pay:cycle` artisan command) is next; F35 (grace enforcer) and F37/F38 (webhook listener extensions) complete Phase G
+
 ## F32 — InitiateRecurringChargeJob real handle() ✓
 - **Tests:** 3/3 passing (full suite 169/169) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)

@@ -1,6 +1,42 @@
 # TODO
 
-## Active: F32 — InitiateRecurringChargeJob real handle()
+## Active: F33 — RetryFailedChargeJob with backoff + markPastDue
+
+**Goal:** A queueable retry wrapper around `InitiateRecurringChargeJob`. On each invocation: try the charge; if it throws, dispatch self again with the next delay from `gmb-pay.subscriptions.retry_backoff_minutes` (defaults `[60, 360, 1440]` minutes — 1h, 6h, 24h); after the schedule is exhausted, mark the Subscription `PastDue` (F35 will move that to `Canceled` if grace days pass).
+
+### Steps
+
+1. **RED — write the test first** at `tests/Jobs/RetryFailedChargeJobTest.php`:
+   - `beforeEach`: `Bus::fake()` to capture re-dispatches
+   - Test (a, exhausted): `attempt = count(backoffs) + 1`. Run job. Subscription is marked `PastDue`; no self-redispatch
+   - Test (b, charge throws): bind a `PaymentManager` stub whose `driver()` returns a driver that throws `RuntimeException` on `charge()`. Run job at `attempt = 1`. Self is re-dispatched with `attempt = 2` and delay of 60 minutes (first backoff); subscription stays `Incomplete` (not yet PastDue)
+   - Test (c, charge succeeds): in demo mode the inner charge succeeds. Run job at `attempt = 1`. No re-dispatch, no PastDue. (Charge + Invoice get persisted by the inner `InitiateRecurringChargeJob` — we don't assert that here since F32 already covered it; just assert there's no retry pending)
+2. **Implement** `src/Jobs/RetryFailedChargeJob.php`:
+   - Queueable, `__construct(public Subscription $subscription, public int $attempt = 1)`
+   - `handle()`:
+     - `$backoffs = (array) config('gmb-pay.subscriptions.retry_backoff_minutes', [60, 360, 1440]);`
+     - If `$this->attempt > count($backoffs)`: `$this->subscription->fresh()?->markPastDue(); return;`
+     - `try { (new InitiateRecurringChargeJob($this->subscription))->handle(); }`
+     - `catch (\Throwable $e) { $delay = $backoffs[$this->attempt - 1] ?? end($backoffs); self::dispatch($this->subscription, $this->attempt + 1)->delay(now()->addMinutes($delay)); }`
+3. Run pest. Tick F33. Done entry. Commit `F33: RetryFailedChargeJob with backoff schedule`
+
+### Files this feature will touch
+
+- `src/Jobs/RetryFailedChargeJob.php` (new)
+- `tests/Jobs/RetryFailedChargeJobTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green)
+- Exhausted-attempt path marks Subscription `PastDue` without re-dispatching
+- Failure path re-dispatches with the right delay; success path does neither
+
+### Notes for the implementer
+
+- F38 (webhook listener) is the eventual caller — it dispatches `RetryFailedChargeJob` when a `charge.failed` webhook arrives. F33 just defines the retry shape
+- The test's failing-driver stub: `$this->app->instance(PaymentManager::class, $mockManager)` then have `$mockManager->driver(...)` return a driver whose `charge()` throws. Anonymous classes implementing `PaymentDriver` work — only `charge()` needs to throw, the other methods can `notImplemented()` since they won't be called
 
 **Goal:** Fill in `InitiateRecurringChargeJob::handle()` with the first-cycle work. Two paths:
 1. **Trial path** — when `subscription->onTrial()` is true, no driver call. Set `status=Active`, `current_period_start = now`, `current_period_end = trial_ends_at`. No Charge, no Invoice.

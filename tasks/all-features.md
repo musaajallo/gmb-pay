@@ -101,7 +101,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 ### Phase G — Subscription engine
 
 - [x] **F32** — `InitiateRecurringChargeJob` (queueable): builds `ChargeRequest` from Subscription + Plan, calls `driver->charge()`, creates `Charge` + `Invoice` rows linking the cycle
-- [ ] **F33** — `RetryFailedChargeJob` with backoff schedule from `gmb-pay.subscriptions.retry_backoff_minutes` (defaults `[60, 360, 1440]`); after final retry, marks subscription `past_due`
+- [x] **F33** — `RetryFailedChargeJob` with backoff schedule from `gmb-pay.subscriptions.retry_backoff_minutes` (defaults `[60, 360, 1440]`); after final retry, marks subscription `past_due`
 - [ ] **F34** — `gmb-pay:cycle` Artisan command: selects subs where `status=active` and `current_period_end <= now()`, dispatches `InitiateRecurringChargeJob` per sub
 - [ ] **F35** — Grace-period enforcer (inside the same `cycle` command run): subs `past_due` longer than `gmb-pay.subscriptions.grace_days` → `markCanceled()`
 - [ ] **F36** — Schedule documentation: install command output tells user to add `$schedule->command('gmb-pay:cycle')->everyFiveMinutes()` to their `routes/console.php`
