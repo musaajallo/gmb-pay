@@ -134,7 +134,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 
 ### Phase K — Tooling, docs, release
 
-- [ ] **F56** — `.github/workflows/tests.yml` — matrix PHP {8.3, 8.4} × Laravel {11, 12, 13}, runs Pint, PHPStan, Pest
+- [x] **F56** — `.github/workflows/tests.yml` — matrix PHP {8.3, 8.4} × Laravel {11, 12, 13}, runs Pint, PHPStan, Pest
 - [x] **F57** — `pint.json` (Laravel Pint config — preset `laravel`, custom rules can come later)
 - [x] **F58** — `phpstan.neon` (Larastan, level 6 to start, can ratchet up)
 - [x] **F59** — `README.md` expansion: full usage examples for charges, subscriptions, custom driver registration, webhook signing in tests

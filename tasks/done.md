@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F56 — GitHub Actions CI workflow ✓
+- **Files changed:** 1 (1 new)
+  - `.github/workflows/tests.yml` (new — matrix CI: PHP 8.3/8.4 × Laravel 11.* / 12.* / 13.*, plus pinned Testbench per Laravel)
+- **Lines:** +66 / -0
+- **Complexity:** Low — standard Laravel-package CI shape
+- **Notes:**
+  - **6-cell matrix**: `php ∈ {8.3, 8.4}` × `laravel ∈ {11.*, 12.*, 13.*}`. `fail-fast: false` so one failure surfaces all
+  - **Testbench is `include:`-mapped to its matching Laravel** (Testbench 9 → L11, 10 → L12, 11 → L13). Without that pin, `composer update` could pick a Testbench version incompatible with the requested Laravel
+  - **`composer require ... --no-update` → `composer update`** is the canonical pattern for switching Laravel versions in a matrix without locking the package itself
+  - **Three checks per cell**: Pint (`--test` for strict-fail), PHPStan (level 6), Pest. Any failure red-fails that cell
+  - **Composer cache keyed on `php × laravel × composer.json`** — fresh installs are ~30s, cached ~3s. Across 6 cells that's a meaningful CI cost saving
+  - **No `coverage`** — Pest reports test counts; full coverage adds ~30s per cell and we don't gate on it. Add later if useful
+  - First CI run will land when this commit pushes; F61 will tag `0.1.0-alpha` once the matrix is green
+
 ## F58 — Larastan (PHPStan) config — clean at level 6 ✓
 - **Tests:** 186/186 still passing — `vendor/bin/pest` (no behavior changes)
 - **Static analysis:** `vendor/bin/phpstan analyse` — **0 errors at level 6**

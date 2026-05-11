@@ -1,8 +1,8 @@
 # TODO
 
-## Active: F56 — GitHub Actions CI workflow
+## Active: F61 — CHANGELOG.md + 0.1.0-alpha tag
 
-Matrix PHP {8.3, 8.4} × Laravel {11, 12, 13}. Steps: composer install, `vendor/bin/pint --test`, `vendor/bin/phpstan analyse`, `vendor/bin/pest`. Commit `F56: GitHub Actions CI workflow`.
+Create `CHANGELOG.md` in Keep-a-Changelog format with one `## [0.1.0-alpha] - 2026-05-11` section summarising the shipped scope. Tag the commit as `0.1.0-alpha`. Note in the entry that F16 (Modempay refund) is BLOCKED and F46-F49 + F53-F55 are inherently blocked on merchant access for Wave/Waychit/Gamswitch/QMoney/Africell.
 
 Comprehensive rewrite covering install, Billable trait API, one-shot charges, subscriptions, webhooks (auto-registered listeners table), refunds (with Modempay-block note), demo mode, Modempay-specific quirks, troubleshooting. Replaces the scaffold-era README. No tests — this is docs.
 
