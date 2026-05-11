@@ -2,6 +2,17 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F23 — Billable::findChargeByReference ✓
+- **Tests:** 4/4 passing (full suite 130/130) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Concerns/Billable.php` (modified — single-method addition)
+  - `tests/Billable/FindChargeByReferenceTest.php` (new)
+- **Lines:** +75 / -0
+- **Complexity:** Trivial — one query on the existing `gmbPayCharges()` relation, qualified by `gmb_pay_charges.reference`
+- **Notes:**
+  - Relies entirely on `gmbPayCharges()`'s built-in `billable_type` scoping (per F20). No extra `where` for billable id/type needed
+  - Returns `null` not just for missing refs but for **other-billable** and **orphan** Charges — tests (c) and (d) lock both cases so a future refactor can't accidentally widen the access window
+
 ## F22 — Billable::charge — drive + persist + link ✓
 - **Tests:** 5/5 passing (full suite 126/126) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)

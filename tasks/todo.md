@@ -1,6 +1,38 @@
 # TODO
 
-## Active: F22 — Billable::charge() — wraps GmbPay::charge() + always persists a Charge linked to the Billable's Customer
+## Active: F23 — Billable::findChargeByReference()
+
+**Goal:** Tiny lookup helper. `$billable->findChargeByReference($ref)` returns the `Charge` model if it belongs to one of this billable's customers, else `null`. Hides the gmbPayCharges()-through-Customer plumbing from the caller.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Billable/FindChargeByReferenceTest.php`:
+   - Test (a): finds a Charge whose `customer_id` belongs to this billable
+   - Test (b): returns `null` when no Charge with that reference exists
+   - Test (c): returns `null` when the Charge exists but belongs to a **different** billable's customer (isolation, same shape as F20 test d)
+   - Test (d): returns `null` for orphan charges (customer_id is null) — they're not reachable from any billable
+2. **Implement** `findChargeByReference(string $reference): ?Charge` in `src/Concerns/Billable.php`:
+   ```php
+   return $this->gmbPayCharges()->where('gmb_pay_charges.reference', $reference)->first();
+   ```
+   Column qualified to `gmb_pay_charges.reference` to avoid ambiguity with any future column on `gmb_pay_customers` of the same name
+3. Run `vendor/bin/pest`. Tick F23, append done.md entry, commit `F23: Billable::findChargeByReference()`
+
+### Files this feature will touch
+
+- `src/Concerns/Billable.php` (modified — single-line method)
+- `tests/Billable/FindChargeByReferenceTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the four new cases above)
+- Orphan and cross-billable Charges return `null` — never a stranger's row
+
+### Notes for the implementer
+
+- The hasManyThrough `gmbPayCharges()` already applies the `billable_type` filter (per F20). Combined with the reference where, the result is scoped both by class and by `(billable_id)` automatically
 
 **Goal:** App-developer-facing one-liner `$user->charge(5000, 'GMD', ['returnUrl' => '...'])` that drives the configured driver, links the resulting Charge to the Billable's Customer row, and returns a `ChargeResult`. Resolves the asymmetry F12 left where Charge persistence only happened on the idempotency path — F22 always persists, regardless of `idempotencyKey`.
 

@@ -92,4 +92,11 @@ trait Billable
 
         return $result;
     }
+
+    public function findChargeByReference(string $reference): ?Charge
+    {
+        return $this->gmbPayCharges()
+            ->where('gmb_pay_charges.reference', $reference)
+            ->first();
+    }
 }
