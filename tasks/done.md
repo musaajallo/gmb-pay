@@ -2,6 +2,22 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F12 — Wire idempotency into PaymentManager::charge() ✓
+- **Tests:** 3/3 passing (full suite 61/61) — `vendor/bin/pest`
+- **Files changed:** 3 (1 new, 2 modified)
+  - `src/PaymentManager.php` (modified — constructor takes `IdempotencyStore`; explicit `charge(ChargeRequest, ?string): ChargeResult` method; private `persistChargeFromResult()` + `resultFromCharge()` helpers)
+  - `src/GmbPayServiceProvider.php` (modified — pass `IdempotencyStore` into the `PaymentManager` singleton closure)
+  - `tests/PaymentManager/ChargeIdempotencyTest.php` (new)
+- **Lines:** +120 / -10
+- **Complexity:** Medium — first explicit override of a `Manager` magic-proxied method; bridges DTO ↔ Eloquent
+- **Notes:**
+  - `PaymentManager::charge()` now exists as a real method, so the facade call `GmbPay::charge($request)` no longer falls through `Manager::__call` to the default driver. `verify`/`refund`/`payout` remain magic-proxied (the `@method` docblock lines were left in place; only the `charge` line was removed)
+  - Driver-direct calls (`GmbPay::driver('modempay')->charge($req)` — what SmokeTest exercises) are unchanged: they still hit `AbstractDriver::charge()` and return a pure DTO with no persistence. F12 only activates when callers route through `PaymentManager::charge()`
+  - Persistence is **gated on `idempotencyKey`**: null key → pure passthrough (no `Charge` row, no `IdempotencyKey` row), preserving today's behavior; non-null key → exactly one `Charge` row and one `IdempotencyKey` row per `(driver, key)`, even across many repeat calls. F22 (`Billable::charge`) will add Charge persistence on the no-key path later
+  - ChargeResult round-trip through `gmb_pay_charges.metadata` uses `_gmbpay_checkout_url`, `_gmbpay_failure_reason`, `_gmbpay_raw` keys. The `_gmbpay_` prefix isolates internal stashing from caller-supplied metadata. `Charge::$casts['metadata'] = 'array'` and `$casts['status'] = ChargeStatus::class` handle the encode/decode automatically
+  - Test environment quirk: with `Tests\PaymentManager` as a new directory, Pest's `__DIR__` sweep in `tests/Pest.php` picks it up automatically — no Pest.php edit needed
+  - Concurrency hardening (DB transaction + `lockForUpdate` in `IdempotencyStore`) is still deferred. The `(driver, key)` unique constraint on `gmb_pay_idempotency_keys` is the long-term backstop; a parallel-retry test would force the harder version of `remember()` — leave for a later pass once we have a real driver
+
 ## F11 — IdempotencyStore service ✓
 - **Tests:** 4/4 passing (full suite 58/58) — `vendor/bin/pest`
 - **Files changed:** 2 (2 new)

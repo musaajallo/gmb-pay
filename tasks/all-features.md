@@ -66,7 +66,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 ### Phase C — Idempotency
 
 - [x] **F11** — `IdempotencyStore` service: `remember(driver, key, callable): result` — returns prior charge if (driver, key) seen, else runs the callable and records the result
-- [ ] **F12** — Wire idempotency into `PaymentManager::charge()` so `ChargeRequest::$idempotencyKey` short-circuits duplicate calls
+- [x] **F12** — Wire idempotency into `PaymentManager::charge()` so `ChargeRequest::$idempotencyKey` short-circuits duplicate calls
 
 ### Phase D — Modempay real driver (only Phase-1 gateway with public docs)
 

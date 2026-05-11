@@ -6,6 +6,7 @@ namespace Africs\GmbPay;
 
 use Africs\GmbPay\Console\InstallCommand;
 use Africs\GmbPay\Events\WebhookReceived;
+use Africs\GmbPay\Idempotency\IdempotencyStore;
 use Africs\GmbPay\Listeners\UpdateChargeFromWebhook;
 use Africs\GmbPay\Listeners\UpdateRefundFromWebhook;
 use Illuminate\Contracts\Container\Container;
@@ -19,7 +20,7 @@ class GmbPayServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/../config/gmb-pay.php', 'gmb-pay');
 
         $this->app->singleton(PaymentManager::class, function (Container $app): PaymentManager {
-            return new PaymentManager($app);
+            return new PaymentManager($app, $app->make(IdempotencyStore::class));
         });
 
         $this->app->alias(PaymentManager::class, 'gmb-pay');
