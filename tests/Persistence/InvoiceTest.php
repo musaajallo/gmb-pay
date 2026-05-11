@@ -18,7 +18,7 @@ function makeInvoiceSubscription(): Subscription
     $billable = FakeBillable::create(['name' => 'Invoice Billable']);
 
     $plan = Plan::create([
-        'slug' => 'invoice-plan-' . uniqid(),
+        'slug' => 'invoice-plan-'.uniqid(),
         'name' => 'Invoice Plan',
         'amount_minor' => 5000,
         'currency' => 'GMD',

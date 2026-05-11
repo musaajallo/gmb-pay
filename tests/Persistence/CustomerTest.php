@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Africs\GmbPay\Models\Customer;
 use Africs\GmbPay\Tests\Fixtures\Models\FakeBillable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Schema;
 
 it('creates the gmb_pay_customers table when migrations run', function () {
@@ -69,5 +70,5 @@ it('enforces uniqueness on (billable_type, billable_id, driver)', function () {
         'billable_id' => $billable->getKey(),
         'driver' => 'modempay',
         'provider_customer_id' => 'cus_dup',
-    ]))->toThrow(\Illuminate\Database\QueryException::class);
+    ]))->toThrow(QueryException::class);
 });

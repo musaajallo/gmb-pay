@@ -2,6 +2,20 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F57 — Pint config + first format pass ✓
+- **Tests:** 186/186 still passing — `vendor/bin/pest` (cosmetic changes only)
+- **Files changed:** 27 (1 new, 1 dep add, 25 reformatted)
+  - `pint.json` (new — `preset: "laravel"`, excludes `tasks/`, `guide/`, `vendor/`)
+  - `composer.json` / `composer.lock` (modified — `laravel/pint ^1.29` dev dep)
+  - 24 source + test files reformatted by `vendor/bin/pint`
+- **Lines:** +30 / -50 net across all files (mostly whitespace/import-ordering nits)
+- **Complexity:** Trivial — config file + auto-fix sweep
+- **Notes:**
+  - **Preset is `laravel`** (not `psr12` or `symfony`). Matches the framework's own style; cheapest convention for a Laravel package
+  - **`exclude` covers `tasks/`, `guide/`, `vendor/`** — Pint doesn't format Markdown anyway but the explicit exclude documents intent
+  - **All 186 tests still green after auto-fix** — the rewrites are mechanical (concat-space, single-quote, import ordering, single-line empty bodies, fully-qualified strict types in test signatures). No semantic shifts
+  - **Run `vendor/bin/pint --test`** before committing to enforce in CI; F56's workflow will wire that. Locally, `vendor/bin/pint` to auto-fix
+
 ## F59 — README expansion ✓
 - **Tests:** N/A (docs feature, full suite 186/186 unchanged)
 - **Files changed:** 1 (1 modified)

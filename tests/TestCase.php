@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Africs\GmbPay\Tests;
 
+use Africs\GmbPay\Facades\GmbPay;
 use Africs\GmbPay\GmbPayServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
@@ -19,7 +20,7 @@ abstract class TestCase extends Orchestra
     protected function getPackageAliases($app): array
     {
         return [
-            'GmbPay' => \Africs\GmbPay\Facades\GmbPay::class,
+            'GmbPay' => GmbPay::class,
         ];
     }
 
@@ -32,7 +33,7 @@ abstract class TestCase extends Orchestra
 
     protected function defineDatabaseMigrations(): void
     {
-        $this->loadMigrationsFrom(__DIR__ . '/Fixtures/migrations');
-        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+        $this->loadMigrationsFrom(__DIR__.'/Fixtures/migrations');
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
 }

@@ -4,6 +4,4 @@ declare(strict_types=1);
 
 namespace Africs\GmbPay\Exceptions;
 
-class GmbPayException extends \RuntimeException
-{
-}
+class GmbPayException extends \RuntimeException {}

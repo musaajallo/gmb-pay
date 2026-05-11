@@ -20,7 +20,7 @@ class GmbPayServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/gmb-pay.php', 'gmb-pay');
+        $this->mergeConfigFrom(__DIR__.'/../config/gmb-pay.php', 'gmb-pay');
 
         $this->app->singleton(PaymentManager::class, function (Container $app): PaymentManager {
             return new PaymentManager($app, $app->make(IdempotencyStore::class));
@@ -31,9 +31,9 @@ class GmbPayServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        $this->loadRoutesFrom(__DIR__ . '/../routes/webhooks.php');
-        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
-        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'gmb-pay');
+        $this->loadRoutesFrom(__DIR__.'/../routes/webhooks.php');
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'gmb-pay');
 
         if ($this->app['config']->get('gmb-pay.events.auto_register', true)) {
             Event::listen(WebhookReceived::class, UpdateChargeFromWebhook::class);
@@ -44,15 +44,15 @@ class GmbPayServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->publishes([
-                __DIR__ . '/../config/gmb-pay.php' => config_path('gmb-pay.php'),
+                __DIR__.'/../config/gmb-pay.php' => config_path('gmb-pay.php'),
             ], 'gmb-pay-config');
 
             $this->publishes([
-                __DIR__ . '/../database/migrations' => database_path('migrations'),
+                __DIR__.'/../database/migrations' => database_path('migrations'),
             ], 'gmb-pay-migrations');
 
             $this->publishes([
-                __DIR__ . '/../resources/views' => resource_path('views/vendor/gmb-pay'),
+                __DIR__.'/../resources/views' => resource_path('views/vendor/gmb-pay'),
             ], 'gmb-pay-views');
 
             $this->commands([

@@ -1,0 +1,8 @@
+{
+    "preset": "laravel",
+    "exclude": [
+        "tasks",
+        "guide",
+        "vendor"
+    ]
+}

@@ -8,15 +8,16 @@ use Africs\GmbPay\Jobs\InitiateRecurringChargeJob;
 use Africs\GmbPay\Models\Plan;
 use Africs\GmbPay\Models\Subscription;
 use Africs\GmbPay\Tests\Fixtures\Models\FakeBillable;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
 
-function makeGraceSub(SubscriptionStatus $status, \Carbon\Carbon $updatedAt, ?\Carbon\Carbon $periodEnd = null): Subscription
+function makeGraceSub(SubscriptionStatus $status, Carbon $updatedAt, ?Carbon $periodEnd = null): Subscription
 {
-    $billable = FakeBillable::create(['name' => 'Grace ' . $status->value]);
+    $billable = FakeBillable::create(['name' => 'Grace '.$status->value]);
 
     $plan = Plan::create([
-        'slug' => 'grace-' . uniqid(),
+        'slug' => 'grace-'.uniqid(),
         'name' => 'Grace Plan',
         'amount_minor' => 5000,
         'currency' => 'GMD',

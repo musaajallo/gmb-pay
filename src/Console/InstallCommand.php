@@ -43,7 +43,7 @@ class InstallCommand extends Command
         $this->line('  1. Set keys in .env: MODEMPAY_*, WAVE_*, WAYCHIT_*');
         $this->line('  2. Choose default driver via GMB_PAY_DEFAULT (modempay|wave|waychit)');
         $this->line('  3. Configure webhook URLs in each provider dashboard:');
-        $this->line('       https://your-app.test/' . config('gmb-pay.webhook.route_prefix') . '/{driver}');
+        $this->line('       https://your-app.test/'.config('gmb-pay.webhook.route_prefix').'/{driver}');
         $this->line('  4. (Optional) GMB_PAY_DEMO=true to run with stubbed drivers locally.');
         $this->line('  5. Schedule the cycle command in routes/console.php:');
         $this->line("       Schedule::command('gmb-pay:cycle')->everyFiveMinutes();");

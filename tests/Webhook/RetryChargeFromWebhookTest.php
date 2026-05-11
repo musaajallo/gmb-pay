@@ -19,7 +19,7 @@ function setupFailingSubscription(): array
     $billable = FakeBillable::create(['name' => 'Failing']);
 
     $plan = Plan::create([
-        'slug' => 'fail-' . uniqid(),
+        'slug' => 'fail-'.uniqid(),
         'name' => 'Fail Plan',
         'amount_minor' => 5000,
         'currency' => 'GMD',
@@ -27,9 +27,9 @@ function setupFailingSubscription(): array
     ]);
 
     $charge = Charge::create([
-        'reference' => 'chg_fail_' . uniqid(),
+        'reference' => 'chg_fail_'.uniqid(),
         'driver' => 'modempay',
-        'provider_reference' => 'pi_fail_' . uniqid(),
+        'provider_reference' => 'pi_fail_'.uniqid(),
         'amount_minor' => 5000,
         'currency' => 'GMD',
         'status' => ChargeStatus::Pending,
@@ -67,7 +67,7 @@ it('marks subscription PastDue and dispatches RetryFailedChargeJob on charge.fai
     $this->postJson('/gmb-pay/webhook/modempay', [
         'event' => 'charge.expired',
         'payload' => [
-            'id' => 'res_' . uniqid(),
+            'id' => 'res_'.uniqid(),
             'payment_intent_id' => $charge->provider_reference,
         ],
     ])->assertOk();
@@ -107,7 +107,7 @@ it('is a no-op when the Invoice has no Subscription (defensive)', function () {
     $billable = FakeBillable::create(['name' => 'Subless']);
 
     $plan = Plan::create([
-        'slug' => 'subless-' . uniqid(),
+        'slug' => 'subless-'.uniqid(),
         'name' => 'Subless',
         'amount_minor' => 5000,
         'currency' => 'GMD',

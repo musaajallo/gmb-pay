@@ -19,7 +19,7 @@ function billableForSubscribe(): FakeBillable
 function makePlan(array $overrides = []): Plan
 {
     return Plan::create(array_merge([
-        'slug' => 'plan-' . uniqid(),
+        'slug' => 'plan-'.uniqid(),
         'name' => 'Test Plan',
         'amount_minor' => 5000,
         'currency' => 'GMD',

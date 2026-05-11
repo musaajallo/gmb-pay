@@ -25,7 +25,7 @@ function makeRetrySubscription(): Subscription
     $billable = FakeBillable::create(['name' => 'Retry']);
 
     $plan = Plan::create([
-        'slug' => 'retry-plan-' . uniqid(),
+        'slug' => 'retry-plan-'.uniqid(),
         'name' => 'Retry Plan',
         'amount_minor' => 5000,
         'currency' => 'GMD',
@@ -47,19 +47,52 @@ function makeRetrySubscription(): Subscription
 
 function bindThrowingPaymentManager(): void
 {
-    $throwingDriver = new class implements PaymentDriver {
-        public function name(): string { return 'throwing'; }
-        public function charge(ChargeRequest $request): ChargeResult { throw new RuntimeException('Provider unreachable'); }
-        public function verify(string $reference): ChargeResult { throw new RuntimeException('n/a'); }
-        public function refund(RefundRequest $request): RefundResult { throw new RuntimeException('n/a'); }
-        public function payout(PayoutRequest $request): PayoutResult { throw new RuntimeException('n/a'); }
-        public function webhookSignatureValid(Request $request): bool { return false; }
-        public function parseWebhook(Request $request): WebhookEvent { throw new RuntimeException('n/a'); }
+    $throwingDriver = new class implements PaymentDriver
+    {
+        public function name(): string
+        {
+            return 'throwing';
+        }
+
+        public function charge(ChargeRequest $request): ChargeResult
+        {
+            throw new RuntimeException('Provider unreachable');
+        }
+
+        public function verify(string $reference): ChargeResult
+        {
+            throw new RuntimeException('n/a');
+        }
+
+        public function refund(RefundRequest $request): RefundResult
+        {
+            throw new RuntimeException('n/a');
+        }
+
+        public function payout(PayoutRequest $request): PayoutResult
+        {
+            throw new RuntimeException('n/a');
+        }
+
+        public function webhookSignatureValid(Request $request): bool
+        {
+            return false;
+        }
+
+        public function parseWebhook(Request $request): WebhookEvent
+        {
+            throw new RuntimeException('n/a');
+        }
     };
 
-    $manager = new class($throwingDriver) {
+    $manager = new class($throwingDriver)
+    {
         public function __construct(private $driver) {}
-        public function driver($name = null) { return $this->driver; }
+
+        public function driver($name = null)
+        {
+            return $this->driver;
+        }
     };
 
     app()->instance(PaymentManager::class, $manager);

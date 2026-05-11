@@ -15,7 +15,7 @@ function makeItemSubscription(): Subscription
     $billable = FakeBillable::create(['name' => 'Item Sub']);
 
     $plan = Plan::create([
-        'slug' => 'items-plan-' . uniqid(),
+        'slug' => 'items-plan-'.uniqid(),
         'name' => 'Items Plan',
         'amount_minor' => 5000,
         'currency' => 'GMD',

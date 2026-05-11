@@ -11,13 +11,14 @@ use Africs\GmbPay\Models\Invoice;
 use Africs\GmbPay\Models\Plan;
 use Africs\GmbPay\Models\Subscription;
 use Africs\GmbPay\Tests\Fixtures\Models\FakeBillable;
+use Carbon\Carbon;
 
-function makeJobSubscription(array $planOverrides = [], ?\Carbon\Carbon $trialEndsAt = null): Subscription
+function makeJobSubscription(array $planOverrides = [], ?Carbon $trialEndsAt = null): Subscription
 {
     $billable = FakeBillable::create(['name' => 'Job User']);
 
     $plan = Plan::create(array_merge([
-        'slug' => 'job-plan-' . uniqid(),
+        'slug' => 'job-plan-'.uniqid(),
         'name' => 'Job Plan',
         'amount_minor' => 5000,
         'currency' => 'GMD',

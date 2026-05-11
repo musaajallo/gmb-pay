@@ -46,7 +46,7 @@ it('does not re-run the callback on a repeat (driver, key), and returns the prio
     $callback = function () use (&$calls) {
         $calls++;
 
-        return makeIdempotencyTestCharge('chg_repeat_' . $calls);
+        return makeIdempotencyTestCharge('chg_repeat_'.$calls);
     };
 
     $first = $store->remember('modempay', 'order-2', $callback);

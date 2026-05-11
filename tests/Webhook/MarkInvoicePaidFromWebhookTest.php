@@ -18,7 +18,7 @@ function setupInvoicedSubscription(SubscriptionStatus $status = SubscriptionStat
     $billable = FakeBillable::create(['name' => 'Invoice Listener']);
 
     $plan = Plan::create([
-        'slug' => 'inv-listener-' . uniqid(),
+        'slug' => 'inv-listener-'.uniqid(),
         'name' => 'Plan',
         'amount_minor' => 5000,
         'currency' => 'GMD',
@@ -32,9 +32,9 @@ function setupInvoicedSubscription(SubscriptionStatus $status = SubscriptionStat
     ]);
 
     $charge = Charge::create([
-        'reference' => 'chg_inv_' . uniqid(),
+        'reference' => 'chg_inv_'.uniqid(),
         'driver' => 'modempay',
-        'provider_reference' => 'pi_inv_' . uniqid(),
+        'provider_reference' => 'pi_inv_'.uniqid(),
         'customer_id' => $customer->id,
         'amount_minor' => 5000,
         'currency' => 'GMD',
@@ -71,7 +71,7 @@ it('marks the Invoice Paid and leaves an Active subscription untouched', functio
     $this->postJson('/gmb-pay/webhook/modempay', [
         'event' => 'charge.succeeded',
         'payload' => [
-            'id' => 'res_' . uniqid(),
+            'id' => 'res_'.uniqid(),
             'payment_intent_id' => $charge->provider_reference,
         ],
     ])->assertOk();
@@ -89,7 +89,7 @@ it('recovers a PastDue subscription back to Active and advances the period', fun
     $this->postJson('/gmb-pay/webhook/modempay', [
         'event' => 'charge.succeeded',
         'payload' => [
-            'id' => 'res_' . uniqid(),
+            'id' => 'res_'.uniqid(),
             'payment_intent_id' => $charge->provider_reference,
         ],
     ])->assertOk();

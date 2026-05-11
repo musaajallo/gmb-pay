@@ -1,5 +1,6 @@
 <?php
 
 declare(strict_types=1);
+use Africs\GmbPay\Tests\TestCase;
 
-uses(Africs\GmbPay\Tests\TestCase::class)->in(__DIR__);
+uses(TestCase::class)->in(__DIR__);

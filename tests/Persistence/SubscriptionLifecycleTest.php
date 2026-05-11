@@ -7,13 +7,14 @@ use Africs\GmbPay\Enums\SubscriptionStatus;
 use Africs\GmbPay\Models\Plan;
 use Africs\GmbPay\Models\Subscription;
 use Africs\GmbPay\Tests\Fixtures\Models\FakeBillable;
+use Carbon\Carbon;
 
-function makeLifecycleSub(SubscriptionStatus $status = SubscriptionStatus::Active, ?\Carbon\Carbon $trialEndsAt = null): Subscription
+function makeLifecycleSub(SubscriptionStatus $status = SubscriptionStatus::Active, ?Carbon $trialEndsAt = null): Subscription
 {
     $billable = FakeBillable::create(['name' => 'Lifecycle']);
 
     $plan = Plan::create([
-        'slug' => 'lifecycle-' . uniqid(),
+        'slug' => 'lifecycle-'.uniqid(),
         'name' => 'Lifecycle Plan',
         'amount_minor' => 5000,
         'currency' => 'GMD',

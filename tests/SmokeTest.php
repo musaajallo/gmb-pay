@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Africs\GmbPay\DataObjects\ChargeRequest;
 use Africs\GmbPay\Enums\ChargeStatus;
+use Africs\GmbPay\Exceptions\UnknownDriverException;
 use Africs\GmbPay\Facades\GmbPay;
 use Africs\GmbPay\PaymentManager;
 
@@ -28,4 +29,4 @@ it('returns a pending demo charge when demo_mode is on', function () {
 
 it('throws on unknown drivers', function () {
     GmbPay::driver('definitely-not-a-driver');
-})->throws(Africs\GmbPay\Exceptions\UnknownDriverException::class);
+})->throws(UnknownDriverException::class);

@@ -56,7 +56,7 @@ class ModempayDriver extends AbstractDriver
         $paymentLink = (string) ($data['payment_link'] ?? '');
 
         return new ChargeResult(
-            reference: 'chg_' . Str::random(20),
+            reference: 'chg_'.Str::random(20),
             status: $this->statusFromModempay((string) ($data['status'] ?? '')),
             amountMinor: (int) ($data['amount'] ?? $request->amountMinor),
             currency: (string) ($data['currency'] ?? $request->currency),
@@ -72,7 +72,7 @@ class ModempayDriver extends AbstractDriver
             return parent::verify($reference);
         }
 
-        $response = $this->client()->request('GET', '/v1/payments/verify?intent_secret=' . urlencode($reference));
+        $response = $this->client()->request('GET', '/v1/payments/verify?intent_secret='.urlencode($reference));
 
         $this->throwIfNotSuccessful($response, 'verify');
 
@@ -125,7 +125,7 @@ class ModempayDriver extends AbstractDriver
         }
 
         return new PayoutResult(
-            reference: 'pyt_' . Str::random(20),
+            reference: 'pyt_'.Str::random(20),
             status: $this->statusFromModempayPayout((string) ($data['status'] ?? '')),
             amountMinor: (int) ($data['amount'] ?? $request->amountMinor),
             currency: (string) ($data['currency'] ?? $request->currency),

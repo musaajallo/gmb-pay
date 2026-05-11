@@ -1,6 +1,8 @@
 # TODO
 
-## Active: F59 — README expansion
+## Active: F58 — Larastan (PHPStan) config
+
+Add `larastan/larastan` dev dep + `phpstan.neon` at level 6 covering `src/`. Run, fix anything surfaced. Commit as `F58: Larastan config`.
 
 Comprehensive rewrite covering install, Billable trait API, one-shot charges, subscriptions, webhooks (auto-registered listeners table), refunds (with Modempay-block note), demo mode, Modempay-specific quirks, troubleshooting. Replaces the scaffold-era README. No tests — this is docs.
 

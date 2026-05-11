@@ -91,5 +91,4 @@ class InitiateRecurringChargeJob implements ShouldQueue
             'current_period_end' => $end,
         ])->save();
     }
-
 }
