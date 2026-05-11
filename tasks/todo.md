@@ -1,6 +1,41 @@
 # TODO
 
-## Active: F37 — MarkInvoicePaidFromWebhook listener (charge.succeeded → invoice paid + past_due recovery)
+## Active: F38 — RetryChargeFromWebhook listener (charge.failed → past_due + dispatch retry)
+
+**Goal:** Mirror of F37 for the failure path. When `charge.failed` arrives for a Charge tied to a subscription's invoice, mark the subscription `PastDue` and dispatch `RetryFailedChargeJob`. F33's retry chain handles the backoff and eventual cancellation. Closes Phase G.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Webhook/RetryChargeFromWebhookTest.php`:
+   - `Bus::fake()` in `beforeEach`
+   - Test (a): Active sub with Open invoice + Charge. POST `charge.failed` webhook → sub flips to `PastDue`; one `RetryFailedChargeJob` dispatched for that sub
+   - Test (b): orphan Charge (no Invoice) → no sub mutation, no retry dispatched
+   - Test (c): Charge linked to invoice but no Subscription (defensive) → no exception, no dispatch
+2. **Implement** `src/Listeners/RetryChargeFromWebhook.php`:
+   - Skip when not `ChargeFailed`
+   - Look up Charge, Invoice, Subscription chain
+   - `$sub->markPastDue()`; `RetryFailedChargeJob::dispatch($sub)`
+3. **Register** in `GmbPayServiceProvider::boot()` — fourth listener in the auto_register block
+4. Run pest. Tick F38. Done entry. Commit `F38: RetryChargeFromWebhook listener — closes Phase G`
+
+### Files this feature will touch
+
+- `src/Listeners/RetryChargeFromWebhook.php` (new)
+- `src/GmbPayServiceProvider.php` (modified — register listener)
+- `tests/Webhook/RetryChargeFromWebhookTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry — Phase G summary)
+
+### Done criteria
+
+- All Pest tests pass (full suite green)
+- Subscription is marked PastDue exactly once per failure; RetryFailedChargeJob is dispatched once
+- Orphan charges (no linked invoice or subscription) silently no-op
+
+### Notes for the implementer
+
+- `RetryFailedChargeJob` accepts the subscription + an `attempt` parameter (defaults to 1). F38 dispatches with the default — F33's job manages the attempt counter from there
+- Phase G closes with F38. Phases F (subs schema) + G (engine) are both done. Webhooks reconcile both success and failure paths end-to-end
 
 **Goal:** When a `charge.succeeded` webhook arrives for a Charge that's linked to an Invoice, flip the Invoice to `Paid`. If the parent Subscription was `PastDue`, recover it to `Active` and re-advance `current_period_*` (a successful retry restarts the cycle clock). Normal-flow subs (already Active) get the Invoice paid but no period change — F32 already advanced the period optimistically at cycle dispatch time.
 

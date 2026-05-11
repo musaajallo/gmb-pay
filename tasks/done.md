@@ -2,6 +2,21 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F38 — RetryChargeFromWebhook listener — closes Phase G ✓
+- **Tests:** 3/3 passing (full suite 186/186) — `vendor/bin/pest`
+- **Files changed:** 3 (2 new, 1 modified)
+  - `src/Listeners/RetryChargeFromWebhook.php` (new)
+  - `src/GmbPayServiceProvider.php` (modified — fourth listener in `auto_register` block)
+  - `tests/Webhook/RetryChargeFromWebhookTest.php` (new)
+- **Lines:** +175 / -2
+- **Complexity:** Low — same shape as F37, single side-effect chain
+- **Notes:**
+  - **Modempay's failure event is `charge.expired`** (mapped to `ChargeFailed` by F19's `webhookEventTypeFromModempay` table) — Modempay's docs don't list `charge.failed` explicitly. The test POSTs `charge.expired` and relies on F19's alias to flow through as `ChargeFailed`. Works end-to-end
+  - **Subscription marked PastDue once, retry dispatched once.** If multiple `charge.failed` arrivals come in (provider retries the webhook), each fires the listener — that's a duplicate dispatch. Acceptable for v1; F33's `RetryFailedChargeJob` is idempotent at the markPastDue level (it'd just re-mark) and the attempt counter would reset, costing an extra retry. Worth a follow-up: dedup at the webhook event id level (which F07 already does via `(driver, provider_event_id)` — so the second webhook with the same `event:id` composite returns the F07 short-circuit `{"duplicate": true}` before any listener fires)
+  - **Defensive Subscription-deleted check** — if an Invoice's parent Subscription was deleted between webhook arrival and listener execution, we silently return. Test (c) locks that
+  - **Phase G closes** with F38. Eight features: F32 cycle-job body, F33 retry-with-backoff, F34 cycle command, F35 grace enforcer, F36 schedule-doc hint, F37 invoice-paid listener, F38 charge-failed listener (+ the F32 carry-over). Subscription lifecycle is now fully reactive: provider webhooks drive Invoice/Subscription state, with grace + retry policies wired in
+  - Phase H (views/portal) is next, or skip to Phase K (release tooling) per the user's pacing
+
 ## F37 — MarkInvoicePaidFromWebhook listener (invoice paid + past_due recovery) ✓
 - **Tests:** 3/3 passing (full suite 183/183) — `vendor/bin/pest`
 - **Files changed:** 5 (2 new, 3 modified)
