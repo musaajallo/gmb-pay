@@ -24,10 +24,25 @@ A unified Laravel package for Gambian payment gateways. One install, one API, on
 
 ## Install
 
+The current release is **`0.1.0-alpha`**. Because of the `-alpha` suffix, Composer needs an explicit stability hint:
+
 ```bash
-composer require africs/gmb-pay
+composer require "africs/gmb-pay:^0.1.0-alpha@dev"
 php artisan gmb-pay:install
 ```
+
+The `@dev` flag tells Composer "this constraint is allowed to resolve to a non-stable version." It only widens stability for *this one package* — your app's `minimum-stability` stays untouched. Drop the `@dev` once a stable `0.1.0` is tagged.
+
+If you'd rather not type the stability flag at every `require`, set it once in your app's `composer.json`:
+
+```json
+{
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
+```
+
+…then `composer require africs/gmb-pay:^0.1.0-alpha` (no `@dev`) works. `prefer-stable: true` keeps everything *else* on stable releases — only packages without a stable version (this one, for now) fall through to `dev`.
 
 `gmb-pay:install` publishes:
 
@@ -253,14 +268,21 @@ Http::fake([
 - **`Modempay payout requires metadata["network"]`** — see Modempay specifics above.
 - **Subscription stuck `incomplete`** — the first `InitiateRecurringChargeJob` either hasn't run yet (queue worker?) or its driver call threw. Check `php artisan queue:failed`.
 
-## What's not yet implemented
+## Scope notes (what's not here and why)
 
-- Wave Gambia + Waychit real drivers — blocked on merchant onboarding
-- Modempay refunds — blocked on provider exposing a public refund endpoint
-- Gamswitch / QMoney / Africell Money drivers — Phase 2
-- Shipped customer-portal Blade views — intentionally deferred; build per-app
+### Blocked on external access — will land when the block lifts
 
-See `tasks/all-features.md` for the full plan and `tasks/done.md` for shipped-feature metadata.
+- **Modempay refunds** — Modempay's public docs document a `refunded` transaction status but no endpoint to create a refund. `Billable::refund()` works against the demo driver; against Modempay it throws `BadMethodCallException` until Modempay publishes the endpoint
+- **Wave Gambia + Waychit real drivers** — no public API docs; blocked on merchant onboarding
+- **Gamswitch / QMoney / Africell Money** — Phase 2 gateways, blocked on merchant onboarding
+
+### Deliberately deferred — not coming unless a real need surfaces
+
+- **Shipped customer-portal Blade views** (originally Phase H: F39–F45) — packaged Blade templates almost always clash with the host app's layout. The package exposes the data you need (`ChargeResult::$checkoutUrl`, `gmb_pay_invoices`, the Billable trait), so build per-app
+- **Pre-emptive driver scaffolds for Phase 2 gateways** (F50–F52) — a stub class that can only return demo-mode responses is maintenance surface with no payoff; will land alongside the real implementations
+- **`CONTRIBUTING.md`** (F60) — solo project right now, no contribution flow to document. Add when someone outside the maintainer wants to contribute
+
+See `tasks/all-features.md` for the full plan and `tasks/done.md` for shipped-feature metadata. `CHANGELOG.md` tracks releases.
 
 ## License
 
