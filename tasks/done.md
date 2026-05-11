@@ -2,6 +2,24 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F14 — ModempayDriver::charge() real implementation ✓
+- **Tests:** 9/9 passing (full suite 76/76) — `vendor/bin/pest`
+- **Files changed:** 3 (1 new, 2 modified)
+  - `src/Drivers/Modempay/ModempayDriver.php` (modified — adds `ModempayClient` constructor dep + `charge()` override + private `client()` lazy factory + private `statusFromModempay()`)
+  - `src/PaymentManager.php` (modified — `createModempayDriver()` builds a `ModempayClient` from the driver config block)
+  - `tests/Drivers/Modempay/ModempayDriverChargeTest.php` (new — five `it()` blocks, one of which is a `with([...])` data set covering all five Modempay status strings)
+- **Lines:** +160 / -3
+- **Complexity:** Medium — first feature against a real provider API; required reading Modempay's `/documentation/payment-intents/create` + `/overview` + `/authentication` pages to lock the request/response shape and status vocabulary
+- **Notes:**
+  - **Request body is wrapped in `"data"`** at this endpoint (Modempay's house style — not Stripe-flat). The client sends `{"data": {amount, currency, description, return_url, cancel_url, metadata, from_sdk: false}}`. Easy to forget when copying from a flat-body integration
+  - **`customer_phone/email/name` from `ChargeRequest` are intentionally not forwarded.** Modempay's `/v1/payments` doesn't accept those at the intent level — they belong on a Customer resource. The hosted checkout (`payment_link`) collects what it needs; F21 will add an explicit `/v1/customers` pre-create flow so callers can associate a Modempay Customer UUID
+  - **Provider reference extraction is heuristic.** The 2xx response shape we have shows `intent_secret` + `payment_link` but no top-level `id`. We extract the trailing UUID from `payment_link` via `Str::afterLast($paymentLink, '/')` and store it as `providerReference` so webhooks (F19) can reconcile. Switch to a real `id` field if Modempay surfaces one
+  - **Status map** is inline in the driver: `successful` → Succeeded, `failed` → Failed, `cancelled` → Cancelled, everything else (`requires_payment_method`, `processing`, unknown) → Pending. F15 (`verify`) will reuse this; if duplication surfaces, extract to `ModempayStatusMap`
+  - **Demo mode is preserved**: the override checks `$this->isDemo()` and falls through to `parent::charge($request)` (the AbstractDriver stub). SmokeTest still gets a `https://demo.local/checkout/...` URL and `Http::assertNothingSent()` passes in the demo test case
+  - **4xx error mapping** reads `response.message` from the JSON body when present, otherwise falls back to the raw body. Message is prefixed with `"Modempay charge failed (HTTP {status}): "` so callers can grep
+  - **`ModempayClient` is constructor-injected** but nullable, with a private `client()` lazy factory as a fallback (uses `config['base_url']` + `config['secret_key']` + `config['timeout_seconds']`). Lets the driver be hand-instantiated in tests without `PaymentManager`. The PaymentManager path always passes a real client through
+  - **`array_filter` on the payload** drops null fields (no `description` when caller didn't supply one, etc), which keeps the wire format clean. Metadata is dropped when it's an empty array — Modempay's example showed metadata as an object, so we don't send `{}`
+
 ## F13 — ModempayClient HTTP wrapper ✓
 - **Tests:** 6/6 passing (full suite 67/67) — `vendor/bin/pest`
 - **Files changed:** 2 (2 new)

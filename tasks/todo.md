@@ -1,46 +1,57 @@
 # TODO
 
-## Active: F13 — ModempayClient HTTP wrapper
+## Active: F14 — ModempayDriver::charge() real implementation
 
-**Goal:** A pre-configured HTTP client for Modempay so F14–F19 driver methods can call `$client->request('POST', '/path', $body)` without re-wiring auth, timeouts, or logging. No Modempay endpoint paths are baked in at this layer — those land with each feature (F14 charge, F15 verify, F16 refund, etc).
+**Goal:** Override `AbstractDriver::charge()` on `ModempayDriver` so a non-demo call POSTs `/v1/payments` against the live Modempay API, returning a `ChargeResult` with `checkoutUrl` populated. Demo mode (`GMB_PAY_DEMO=true`) keeps using the stubbed AbstractDriver path. 4xx responses raise `GmbPayException`.
+
+**Modempay request/response shape (per `https://docs.modempay.com/documentation/payment-intents/create` — re-verify if it drifts):**
+
+- POST `/v1/payments` against base URL `https://api.modempay.com`
+- Body is wrapped: `{"data": {"amount": <minor>, "currency": "GMD", "description": ..., "return_url": ..., "cancel_url": ..., "metadata": ..., "from_sdk": false}}`. No `customer_phone/email/name` fields at this endpoint — those are Customer-resource concerns (F21)
+- 2xx response is also wrapped: `{"data": {"intent_secret": "...", "payment_link": "https://test.checkout.modempay.com/<uuid>", "amount": ..., "currency": "GMD", "expires_at": "...", "status": "requires_payment_method"}}`
+- Status vocabulary: `requires_payment_method`, `processing`, `successful`, `failed`, `cancelled`
 
 ### Steps
 
-1. **RED — write the test first** at `tests/Drivers/Modempay/ModempayClientTest.php`:
-   - With `Http::fake()`, send a `POST /payment-intents` with body `['amount' => 5000]`. Assert (a) `Authorization: Bearer sk_test_abc123` header is set; (b) `Accept: application/json`; (c) `Content-Type: application/json`; (d) URL resolves to `https://api.modempay.test/payment-intents`; (e) body is sent as JSON (`$req['amount'] === 5000`)
-   - Returns the `Illuminate\Http\Client\Response` so callers can inspect status / body
-   - When `app()->detectEnvironment(fn () => 'local')` is in effect, `Log::spy()` records a `debug` entry for both the request and the response. When the env is `testing` (default), `Log::spy()` records nothing
-   - Confirm fails first (no class yet)
-2. **Implement** `src/Drivers/Modempay/ModempayClient.php`:
-   - Namespace `Africs\GmbPay\Drivers\Modempay`
-   - Constructor: `__construct(private readonly string $baseUrl, private readonly string $secretKey, private readonly int $timeoutSeconds = 30)`
-   - `public function request(string $method, string $path, array $body = []): Response`
-     - Build via `Http::baseUrl($baseUrl)->withToken($secretKey)->acceptJson()->asJson()->timeout($timeoutSeconds)`
-     - Pre-call: if `app()->isLocal()`, `Log::debug('[modempay] request', ['method' => $method, 'path' => $path, 'body' => $body])`
-     - Send via `->send($method, $path, ['json' => $body])`
-     - Post-call: if `app()->isLocal()`, `Log::debug('[modempay] response', ['status' => $response->status(), 'body' => $response->json() ?? $response->body()])`
-     - Return `$response`
-3. Run `vendor/bin/pest`. Tick F13, append done.md entry, commit `F13: ModempayClient HTTP wrapper`
+1. **RED — write the test first** at `tests/Drivers/Modempay/ModempayDriverChargeTest.php`:
+   - `beforeEach`: turn off demo mode (`config(['gmb-pay.demo_mode' => false])`), `Http::fake()` returning the Modempay 2xx shape above
+   - Test (a): driver sends a POST to `https://api.modempay.com/v1/payments` with body wrapped in `"data"`, including `amount`, `currency`, `description`, `return_url`, `metadata`, `from_sdk: false`. Bearer auth header from `secret_key` config
+   - Test (b): driver returns a `ChargeResult` with `checkoutUrl === response.data.payment_link`, `providerReference` set to the last URL segment of `payment_link`, `amountMinor` and `currency` echoed from the request, `status` mapped from `requires_payment_method` → `ChargeStatus::Pending`
+   - Test (c): status mapping — `successful` → Succeeded, `processing` → Pending, `failed` → Failed, `cancelled` → Cancelled. Use a data-provider style or four small `it()` blocks
+   - Test (d): 4xx response throws `GmbPayException` with a message containing the response body
+   - Test (e): demo-mode path is unchanged — `GMB_PAY_DEMO=true` returns the stubbed `https://demo.local/checkout/...` URL without making any HTTP call (assert `Http::assertNothingSent()`)
+2. **Implement** `ModempayDriver::charge(ChargeRequest $request): ChargeResult`:
+   - If `$this->isDemo()`: `return parent::charge($request);` (keeps the AbstractDriver demo path)
+   - Else: build the `data` payload, POST via `$this->client->request('POST', '/v1/payments', ['data' => $payload])`, parse the response, return a `ChargeResult` mapped through a private `statusFromModempay(string): ChargeStatus` helper
+   - Throw `Africs\GmbPay\Exceptions\GmbPayException` if `! $response->successful()` — include `$response->status()` and `$response->body()` in the message
+   - Generate a local reference (`'chg_' . Str::random(20)`)
+3. **Wire** `ModempayClient` into `ModempayDriver`:
+   - Add `private readonly ModempayClient $client` constructor dep
+   - Update `PaymentManager::createModempayDriver()` to build a `ModempayClient` from the modempay config block (`base_url`, `secret_key`, `timeout_seconds`)
+   - Empty `secret_key` is fine for demo-mode tests since the driver never reaches the network there
+4. Run `vendor/bin/pest`. Tick F14, append done.md entry, commit `F14: ModempayDriver::charge() real implementation`
 
 ### Files this feature will touch
 
-- `src/Drivers/Modempay/ModempayClient.php` (new)
-- `tests/Drivers/Modempay/ModempayClientTest.php` (new)
+- `src/Drivers/Modempay/ModempayDriver.php` (modified — adds `charge()` override + constructor)
+- `src/PaymentManager.php` (modified — `createModempayDriver` builds a `ModempayClient`)
+- `tests/Drivers/Modempay/ModempayDriverChargeTest.php` (new)
 - `tasks/all-features.md` (check the box)
 - `tasks/done.md` (append entry)
 
 ### Done criteria
 
 - All Pest tests pass (full suite green, including the new cases above)
-- `ModempayClient` is constructible in isolation — F14 can `new ModempayClient(...)` or resolve via container without any prior service-provider edits in this feature
-- No Modempay endpoint paths exist in the class body; those land with F14+
+- `GMB_PAY_DEMO=true` path still returns `https://demo.local/checkout/...` and makes zero HTTP calls
+- 4xx responses surface as `GmbPayException`, not silent failures
 
 ### Notes for the implementer
 
-- Use the `Illuminate\Support\Facades\Http` facade so `Http::fake()` works in tests
-- `Http::withToken($key)` produces `Authorization: Bearer $key`. Don't roll the header by hand
-- `Log::spy()` returns a spy that records every call to `Log::debug`/`info`/etc. Assert with `Log::shouldHaveReceived('debug')->twice()` (request + response) for the local-env case; `Log::shouldNotHaveReceived('debug')` for the testing-env case
-- Container binding is **deferred to F14**. F13 just delivers the class; F14 will decide whether to bind it as a singleton or build it inside `ModempayDriver::__construct` from the driver config array
+- The Modempay request body is **wrapped in `data`** — easy to miss when copying from a Stripe-style integration where the body is flat
+- `customer_phone/email/name` from `ChargeRequest` are intentionally NOT forwarded to Modempay at this endpoint. Modempay's hosted checkout (`payment_link`) collects them itself; F21 will add a `/v1/customers` pre-create flow when a caller wants to associate a Modempay Customer UUID
+- Provider reference extraction: `Str::afterLast($paymentLink, '/')` returns the UUID. If Modempay later exposes a top-level `id` field in this response, switch to that and migrate the existing rows in a separate task
+- `from_sdk: false` is in the example payload — keep it explicit so the docs example matches what we send
+- Status map for this feature lives inline in the driver. F15 (`verify`) will reuse it; if duplication appears we can extract to `ModempayStatusMap` then
 
 ---
 

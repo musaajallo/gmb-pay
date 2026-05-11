@@ -7,6 +7,7 @@ namespace Africs\GmbPay;
 use Africs\GmbPay\Contracts\PaymentDriver;
 use Africs\GmbPay\DataObjects\ChargeRequest;
 use Africs\GmbPay\DataObjects\ChargeResult;
+use Africs\GmbPay\Drivers\Modempay\ModempayClient;
 use Africs\GmbPay\Drivers\Modempay\ModempayDriver;
 use Africs\GmbPay\Drivers\Wave\WaveDriver;
 use Africs\GmbPay\Drivers\Waychit\WaychitDriver;
@@ -63,8 +64,15 @@ class PaymentManager extends Manager
 
     protected function createModempayDriver(): PaymentDriver
     {
+        $config = (array) $this->config->get('gmb-pay.drivers.modempay', []);
+
         return new ModempayDriver(
-            config: (array) $this->config->get('gmb-pay.drivers.modempay', []),
+            config: $config,
+            client: new ModempayClient(
+                baseUrl: (string) ($config['base_url'] ?? 'https://api.modempay.com'),
+                secretKey: (string) ($config['secret_key'] ?? ''),
+                timeoutSeconds: (int) ($config['timeout_seconds'] ?? 30),
+            ),
         );
     }
 
