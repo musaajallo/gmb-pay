@@ -2,6 +2,21 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F22 — Billable::charge — drive + persist + link ✓
+- **Tests:** 5/5 passing (full suite 126/126) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Concerns/Billable.php` (modified — adds `charge()` method)
+  - `tests/Billable/BillableChargeTest.php` (new)
+- **Lines:** +120 / -0
+- **Complexity:** Medium — bridges Billable → PaymentManager → Charge persistence, two paths unified via `firstOrNew`
+- **Notes:**
+  - **Goes through `PaymentManager::charge()` (F12)**, not the driver directly, so the idempotency dedup that F12 wired up still applies via `$opts['idempotencyKey']`. Test (c) proves a repeat with the same key returns the same `reference` and Charge::count stays at 1
+  - **Unified persistence via `firstOrNew`**: F12 only persists when `idempotencyKey` is set; F22 needs a Charge regardless. After F12 returns the `ChargeResult`, F22 does `Charge::firstOrNew(['reference' => $result->reference])` and fills the link fields. For the idempotency-keyed path, the row already exists (created by F12) and we back-fill `customer_id`; for the no-key path, the row is fresh and we set everything including the `_gmbpay_*` metadata stash. This resolves the asymmetry called out in F20's done entry
+  - **Metadata is only written on create** (`if (! $charge->exists)`), preventing F22 from accidentally clobbering F12's `_gmbpay_*` stash on replay. The metadata's user-facing keys (e.g. `order_id`) come from `$request->metadata`; the `_gmbpay_*` internal keys come from `ChargeResult`. Test (e) checks the user-facing keys round-trip
+  - **`$opts['customerPhone']` defaults to `''`** because `ChargeRequest::$customerPhone` is non-nullable. Modempay's `/v1/payments` doesn't accept phone at the intent level anyway (see F14 done notes), so empty is harmless. Drivers that DO need a phone (Wave/Waychit when those land) should validate at the driver layer
+  - **Duplicates F12's metadata-blob construction**. Acceptable for two callers (F12 + F22). If a third caller surfaces (e.g. F32 `InitiateRecurringChargeJob`), extract `persistChargeFromResult()` to `src/Internal/ChargeBridge.php` as a shared static helper
+  - F23 (next) is the tiny `findChargeByReference()` lookup. F24 ships as a Billable-side wrapper around `$driver->refund()` — Modempay's path bubbles up the `BadMethodCallException` until F16's blocker resolves; demo mode still works
+
 ## F21 — Billable::createGmbPayCustomer() ✓
 - **Tests:** 5/5 passing (full suite 121/121) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)

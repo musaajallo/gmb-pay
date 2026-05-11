@@ -1,6 +1,46 @@
 # TODO
 
-## Active: F21 — Billable::createGmbPayCustomer()
+## Active: F22 — Billable::charge() — wraps GmbPay::charge() + always persists a Charge linked to the Billable's Customer
+
+**Goal:** App-developer-facing one-liner `$user->charge(5000, 'GMD', ['returnUrl' => '...'])` that drives the configured driver, links the resulting Charge to the Billable's Customer row, and returns a `ChargeResult`. Resolves the asymmetry F12 left where Charge persistence only happened on the idempotency path — F22 always persists, regardless of `idempotencyKey`.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Billable/BillableChargeTest.php`:
+   - `beforeEach`: demo mode true (default tests), default driver `modempay`
+   - Test (a): `$billable->charge(5000, 'GMD', ['customerPhone' => '+2203000000'])` returns a `ChargeResult` whose `checkoutUrl` matches the demo stub, and persists exactly one `Charge` row with `customer_id` set to the `Customer` produced by `createGmbPayCustomer()`
+   - Test (b): explicit `$opts['driver']` resolves a different driver — call with `'wave'`, assert `Charge::driver === 'wave'` and the Customer is the one under `wave`
+   - Test (c): repeating the call with the same `$opts['idempotencyKey']` returns an equivalent `ChargeResult` (same `reference`) and `Charge::count()` stays at 1 (F12's dedup carries through)
+   - Test (d): distinct idempotency keys for the same billable produce two Charges, both with the same `customer_id`
+   - Test (e): `$opts['metadata']`, `description`, `returnUrl`, `customerName`, `customerEmail` all reach the underlying `ChargeRequest` — assert by inspecting `$charge->metadata['_gmbpay_raw']` or simply that the ChargeRequest fields land in the DTO the driver receives (best via a custom test driver, but for now check that `$opts['metadata']` ends up on the persisted Charge's `metadata` JSON)
+2. **Implement** `Billable::charge(int $amountMinor, string $currency = 'GMD', array $opts = []): ChargeResult` in `src/Concerns/Billable.php`:
+   - Resolve `$driverName` from `$opts['driver']` or `config('gmb-pay.default')`
+   - `$customer = $this->createGmbPayCustomer($driverName)` — idempotent attach
+   - Build a `ChargeRequest` from `$amountMinor`, `$currency`, and `$opts` (keys: `customerPhone`, `customerName`, `customerEmail`, `description`, `callbackUrl`, `returnUrl`, `idempotencyKey`, `metadata`). Required keys missing → sensible defaults (`customerPhone` defaults to `''`, metadata to `[]`)
+   - `$result = app(\Africs\GmbPay\PaymentManager::class)->charge($request, $driverName)` — F12 handles idempotency-keyed dedup and may have already persisted a Charge if a key is set
+   - **Unify persistence:** `Charge::firstOrNew(['reference' => $result->reference])`, fill `driver`, `customer_id`, `provider_reference`, `amount_minor`, `currency`, `status`. If `! $charge->exists` (F12 didn't persist because no idempotencyKey, OR fresh idempotent call), additionally set `metadata` to the `array_merge($opts['metadata'] ?? [], ['_gmbpay_checkout_url' => …, '_gmbpay_failure_reason' => …, '_gmbpay_raw' => …])` blob. Save. This way the no-idempotencyKey path also gets a Charge row, and the idempotency replay path just back-fills `customer_id` on the F12-created row
+   - Return `$result`
+3. Run `vendor/bin/pest`. Tick F22, append done.md entry, commit `F22: Billable::charge() — drive + persist + link`
+
+### Files this feature will touch
+
+- `src/Concerns/Billable.php` (modified — adds `charge()`)
+- `tests/Billable/BillableChargeTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the five new cases above)
+- After `$billable->charge(...)`, a `Charge` row exists with the right `customer_id` — regardless of whether `idempotencyKey` was supplied
+- Existing F12 `ChargeIdempotencyTest` still passes (the `Charge::count() === 1` assertion holds because F22 uses `firstOrNew` to back-fill, not create-fresh)
+
+### Notes for the implementer
+
+- **The unified `firstOrNew` path** resolves F20's noted asymmetry. Both paths go through F22 cleanly; F12 stays useful for callers that need lower-level access (no Billable, just `GmbPay::charge($request)`)
+- **`customerPhone` defaults to `''`** because `ChargeRequest::$customerPhone` is non-nullable in the DTO. Modempay's `/v1/payments` doesn't forward it anyway (per F14's notes), so empty is harmless. Drivers that *do* require a phone (Wave/Waychit when those land) can validate at the driver level
+- **The `_gmbpay_*` metadata stash** mirrors F12 exactly — same keys, same purpose. The duplication between F22 and F12 is small enough to live with; if a third caller surfaces, extract `persistChargeFromResult()` to a `src/Internal/ChargeBridge.php` static helper
+- F23 (next) is `findChargeByReference()` — a one-liner on the trait. F24 (`Billable::refund`) is technically blocked on F16's Modempay refund endpoint but we can still ship a Billable-side wrapper that delegates to `$driver->refund()` and bubbles the `BadMethodCallException` for Modempay (demo mode still works)
 
 **Goal:** Add a `createGmbPayCustomer(?string $driver = null, array $opts = []): Customer` helper to the `Billable` trait. Creates (or returns the existing) local `gmb_pay_customers` row for this billable+driver. Provider-side customer creation (a separate HTTP call to e.g. Modempay's `/v1/customers`) is **deferred** — F21 stays local-only per the original spec.
 
