@@ -1,6 +1,50 @@
 # TODO
 
-## Active: F31 — Subscription lifecycle helpers
+## Active: F32 — InitiateRecurringChargeJob real handle()
+
+**Goal:** Fill in `InitiateRecurringChargeJob::handle()` with the first-cycle work. Two paths:
+1. **Trial path** — when `subscription->onTrial()` is true, no driver call. Set `status=Active`, `current_period_start = now`, `current_period_end = trial_ends_at`. No Charge, no Invoice.
+2. **Live path** — compute total from items (`sum(quantity * unit_amount_minor)`), build a `ChargeRequest`, call `$driver->charge()`, persist a `Charge` linked to the billable's Customer for that driver, persist an `Invoice` (status `Open`, linked to the subscription + charge), advance subscription to `Active` with `current_period_start = now`, `current_period_end = now + plan.interval * plan.interval_count`.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Jobs/InitiateRecurringChargeJobTest.php`:
+   - `beforeEach`: demo mode (default)
+   - Test (a, trial path): create a Subscription with `trial_ends_at = now + 14d` (and `Incomplete` status). Dispatch the job synchronously (`$job->handle()` or `dispatch_sync`). Assert: status flips to `Active`, `current_period_start ≈ now`, `current_period_end ≈ trial_ends_at`. `Charge::count() === 0`, `Invoice::count() === 0`
+   - Test (b, live path): create a Subscription with no trial, one item at 5000, Plan interval=Month. Run job. Assert: status `Active`, `current_period_start ≈ now`, `current_period_end ≈ now + 1mo`. Exactly one `Charge` row with `amount_minor = 5000`, linked to a Customer for this billable+driver. Exactly one `Invoice` (status `Open`, linked to that Charge, period dates matching the subscription)
+   - Test (c, multi-item total): subscription with two items (one at 3000, one at 2000 with quantity 2 → 7000 total). Live path. Charge amount = 3000 + 2*2000 = 7000
+2. **Implement** `src/Jobs/InitiateRecurringChargeJob::handle()`:
+   - `$sub = $this->subscription->fresh(['plan', 'items', 'billable']);` — reload with relations
+   - If `$sub->onTrial()`:
+     - Update `current_period_start = now`, `current_period_end = trial_ends_at`, `status = Active`. Return
+   - Live path:
+     - Compute `$amount = $sub->items->sum(fn ($i) => $i->quantity * $i->unit_amount_minor)`
+     - Compute period end via a private helper `addInterval(Carbon $start, PlanInterval $interval, int $count): Carbon` (uses `addDays`/`addWeeks`/`addMonths`/`addYears`)
+     - Resolve the driver, build `ChargeRequest(amountMinor: $amount, currency: $sub->plan->currency, customerPhone: '')`
+     - `$result = $driver->charge($request);`
+     - Persist a `Charge` row linked to `Customer` via `$sub->billable->createGmbPayCustomer($sub->driver)` (existing F21 helper); reuse the `_gmbpay_*` metadata stash from F22
+     - Persist an `Invoice` row: `subscription_id`, `charge_id`, `amount_minor`, `currency`, `status = Open`, `period_start`, `period_end`
+     - Update Subscription: `status = Active`, period dates set
+3. Run pest. Tick F32. Done entry. Commit `F32: InitiateRecurringChargeJob real handle()`
+
+### Files this feature will touch
+
+- `src/Jobs/InitiateRecurringChargeJob.php` (modified — fill `handle()`, add private interval helper)
+- `tests/Jobs/InitiateRecurringChargeJobTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the three new cases)
+- Trial-path subscriptions don't produce a Charge or Invoice on the first cycle
+- Live-path subscriptions produce exactly one Charge + one Invoice; the Invoice references both the subscription and the charge
+
+### Notes for the implementer
+
+- Trial-path advances `status` to `Active` so F30's `subscribed()` returns true for trialing users. `onTrial()` still reports the trial state via `trial_ends_at`. Two orthogonal flags
+- The driver call can fail (in non-demo mode) — let the exception bubble. F33's `RetryFailedChargeJob` will rescue. F32 doesn't catch
+- Reusing `createGmbPayCustomer()` on the billable is the right idempotent attach pattern
 
 **Goal:** Add eight lifecycle methods to the `Subscription` model so callers don't have to know the underlying status enum. Closes Phase F.
 

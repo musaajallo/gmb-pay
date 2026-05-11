@@ -4,7 +4,15 @@ declare(strict_types=1);
 
 namespace Africs\GmbPay\Jobs;
 
+use Africs\GmbPay\DataObjects\ChargeRequest;
+use Africs\GmbPay\Enums\InvoiceStatus;
+use Africs\GmbPay\Enums\PlanInterval;
+use Africs\GmbPay\Enums\SubscriptionStatus;
+use Africs\GmbPay\Models\Charge;
+use Africs\GmbPay\Models\Invoice;
 use Africs\GmbPay\Models\Subscription;
+use Africs\GmbPay\PaymentManager;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,8 +30,77 @@ class InitiateRecurringChargeJob implements ShouldQueue
 
     public function handle(): void
     {
-        // F32 fills in: build ChargeRequest from Subscription + Plan, call driver->charge(),
-        // create Charge + Invoice rows linking the cycle. Stubbed here so F29's subscribeToPlan()
-        // can dispatch without the queue worker erroring on an unknown class.
+        $sub = $this->subscription->fresh(['plan', 'items', 'billable']);
+
+        if ($sub === null) {
+            return;
+        }
+
+        $start = now();
+
+        if ($sub->onTrial()) {
+            $sub->forceFill([
+                'status' => SubscriptionStatus::Active,
+                'current_period_start' => $start,
+                'current_period_end' => $sub->trial_ends_at,
+            ])->save();
+
+            return;
+        }
+
+        $amount = (int) $sub->items->sum(fn ($item) => $item->quantity * $item->unit_amount_minor);
+        $end = $this->addInterval($start, $sub->plan->interval, $sub->plan->interval_count);
+
+        $driver = app(PaymentManager::class)->driver($sub->driver);
+
+        $result = $driver->charge(new ChargeRequest(
+            amountMinor: $amount,
+            currency: $sub->plan->currency,
+            customerPhone: '',
+        ));
+
+        $customer = $sub->billable->createGmbPayCustomer($sub->driver);
+
+        $charge = Charge::create([
+            'reference' => $result->reference,
+            'driver' => $sub->driver,
+            'customer_id' => $customer->id,
+            'provider_reference' => $result->providerReference,
+            'amount_minor' => $result->amountMinor,
+            'currency' => $result->currency,
+            'status' => $result->status,
+            'metadata' => [
+                '_gmbpay_checkout_url' => $result->checkoutUrl,
+                '_gmbpay_failure_reason' => $result->failureReason,
+                '_gmbpay_raw' => $result->raw,
+                '_gmbpay_subscription_id' => $sub->id,
+            ],
+        ]);
+
+        Invoice::create([
+            'subscription_id' => $sub->id,
+            'charge_id' => $charge->id,
+            'amount_minor' => $amount,
+            'currency' => $sub->plan->currency,
+            'status' => InvoiceStatus::Open,
+            'period_start' => $start,
+            'period_end' => $end,
+        ]);
+
+        $sub->forceFill([
+            'status' => SubscriptionStatus::Active,
+            'current_period_start' => $start,
+            'current_period_end' => $end,
+        ])->save();
+    }
+
+    private function addInterval(Carbon $start, PlanInterval $interval, int $count): Carbon
+    {
+        return match ($interval) {
+            PlanInterval::Day => $start->copy()->addDays($count),
+            PlanInterval::Week => $start->copy()->addWeeks($count),
+            PlanInterval::Month => $start->copy()->addMonths($count),
+            PlanInterval::Year => $start->copy()->addYears($count),
+        };
     }
 }

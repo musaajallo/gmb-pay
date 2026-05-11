@@ -2,6 +2,21 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F32 — InitiateRecurringChargeJob real handle() ✓
+- **Tests:** 3/3 passing (full suite 169/169) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Jobs/InitiateRecurringChargeJob.php` (modified — full `handle()` + private `addInterval()`)
+  - `tests/Jobs/InitiateRecurringChargeJobTest.php` (new)
+- **Lines:** +200 / -3
+- **Complexity:** Medium — the first feature that wires Subscription → driver → Charge → Invoice end-to-end
+- **Notes:**
+  - **Trial vs Live paths** branch on `onTrial()`. Trial: no driver call, advance to Active with period spanning to `trial_ends_at`. Live: real charge + Invoice + advance period by `plan.interval * plan.interval_count`
+  - **Total amount = `sum(quantity * unit_amount_minor)`** across all SubscriptionItems. Test (c) locks the quantity multiplication (was the most likely source of off-by-N bugs)
+  - **`addInterval()` helper** uses Carbon's `addDays/addWeeks/addMonths/addYears` per PlanInterval enum — single source of truth for the period-end calculation; F37 (webhook listener that rolls the period forward on `charge.succeeded`) will reuse this when it lands
+  - **Invoice persisted as `Open`** here; F37's webhook listener will flip it to `Paid` when the corresponding `charge.succeeded` arrives. Today demo mode returns a `Pending` charge so the invoice stays Open across the test — that's the right shape for a real provider where confirmation arrives asynchronously
+  - **Customer is reused via `createGmbPayCustomer()`** (F21's idempotent helper), so first-cycle and subsequent-cycle Charges all link to the same Customer row per billable+driver
+  - **Driver exceptions bubble up** — F33's RetryFailedChargeJob will be the rescue layer. F32 doesn't catch so the queue can mark the job failed and trigger the retry chain
+
 ## F31 — Subscription lifecycle helpers — closes Phase F ✓
 - **Tests:** 7/7 passing (full suite 166/166) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)
