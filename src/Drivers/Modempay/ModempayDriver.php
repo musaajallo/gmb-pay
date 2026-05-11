@@ -9,6 +9,7 @@ use Africs\GmbPay\DataObjects\ChargeResult;
 use Africs\GmbPay\Drivers\AbstractDriver;
 use Africs\GmbPay\Enums\ChargeStatus;
 use Africs\GmbPay\Exceptions\GmbPayException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Str;
 
 class ModempayDriver extends AbstractDriver
@@ -43,18 +44,7 @@ class ModempayDriver extends AbstractDriver
 
         $response = $this->client()->request('POST', '/v1/payments', ['data' => $payload]);
 
-        if (! $response->successful()) {
-            $body = $response->json();
-            $message = is_array($body) && isset($body['message']) && is_string($body['message'])
-                ? $body['message']
-                : $response->body();
-
-            throw new GmbPayException(sprintf(
-                'Modempay charge failed (HTTP %d): %s',
-                $response->status(),
-                $message,
-            ));
-        }
+        $this->throwIfNotSuccessful($response, 'charge');
 
         $data = (array) ($response->json('data') ?? []);
         $paymentLink = (string) ($data['payment_link'] ?? '');
@@ -68,6 +58,53 @@ class ModempayDriver extends AbstractDriver
             providerReference: $paymentLink !== '' ? Str::afterLast($paymentLink, '/') : null,
             raw: $data,
         );
+    }
+
+    public function verify(string $reference): ChargeResult
+    {
+        if ($this->isDemo()) {
+            return parent::verify($reference);
+        }
+
+        $response = $this->client()->request('GET', '/v1/payments/verify?intent_secret=' . urlencode($reference));
+
+        $this->throwIfNotSuccessful($response, 'verify');
+
+        $data = $response->json('data');
+        if (! is_array($data)) {
+            $data = (array) ($response->json() ?? []);
+        }
+
+        $link = is_string($data['link'] ?? null) ? $data['link'] : null;
+
+        return new ChargeResult(
+            reference: $reference,
+            status: $this->statusFromModempay((string) ($data['status'] ?? '')),
+            amountMinor: (int) ($data['amount'] ?? 0),
+            currency: (string) ($data['currency'] ?? (string) config('gmb-pay.currency', 'GMD')),
+            checkoutUrl: $link,
+            providerReference: null,
+            raw: $data,
+        );
+    }
+
+    private function throwIfNotSuccessful(Response $response, string $operation): void
+    {
+        if ($response->successful()) {
+            return;
+        }
+
+        $body = $response->json();
+        $message = is_array($body) && isset($body['message']) && is_string($body['message'])
+            ? $body['message']
+            : $response->body();
+
+        throw new GmbPayException(sprintf(
+            'Modempay %s failed (HTTP %d): %s',
+            $operation,
+            $response->status(),
+            $message,
+        ));
     }
 
     private function client(): ModempayClient

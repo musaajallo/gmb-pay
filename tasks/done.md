@@ -2,6 +2,21 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F15 — ModempayDriver::verify() real implementation ✓
+- **Tests:** 10/10 passing (full suite 86/86) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Drivers/Modempay/ModempayDriver.php` (modified — adds `verify()` override + extracts a shared `throwIfNotSuccessful()` helper that both `charge()` and `verify()` now use)
+  - `tests/Drivers/Modempay/ModempayDriverVerifyTest.php` (new — six `it()` blocks including a `with([...])` data set across all five known Modempay statuses)
+- **Lines:** +145 / -8
+- **Complexity:** Low — same shape as F14, just GET with a query param
+- **Notes:**
+  - **`$reference` is `intent_secret`, not the payment-intent UUID.** Discovered while reading `/documentation/payment-intents/management`: the verify endpoint is `GET /v1/payments/verify?intent_secret=<...>`, keyed by Modempay's short-lived verifier token (returned in F14's `ChargeResult.raw.intent_secret`). The long-lived UUID id (what F14 stores in `provider_reference`) is what cancel/refund/webhook flows use. The intent_secret/UUID split is a Modempay-specific quirk worth surfacing in the driver docblock when F19 lands and we know the full picture
+  - **Response wrapping is tolerated either way.** The Modempay docs for verify only describe the response in prose ("returns Payment Intent object including status, amount, currency, description, link, customer") with no literal JSON example. The driver tries `$response->json('data')` first and falls back to `$response->json()` if that's null — a flat shape and a `data`-wrapped shape both work. Test (d) locks the flat-shape parser
+  - **Status map is shared with F14** via the existing private `statusFromModempay()` helper. F14's `default => Pending` already catches the verify-specific status `initialized` correctly (the test asserts this), so no map change was needed
+  - **Error mapping was extracted** out of `charge()` into a private `throwIfNotSuccessful(Response, string $operation): void`. Both `charge()` and `verify()` now call it. The error message is templated as `"Modempay <operation> failed (HTTP <status>): <message>"` so callers can disambiguate
+  - **`providerReference` is set to `null` from verify.** The verify response doesn't expose the PI UUID id (just `link`, which contains the UUID but parsing it out here would create two sources of truth). Callers who need the UUID should fetch the original `ChargeResult` from F14 or use the webhook reconciliation path
+  - **Carry-overs for later Phase-D features:** while planning F15 the webhook docs revealed two things that affect F18/F19 — (1) Modempay webhook payloads are wrapped as `{"event": "<type>", "payload": {...}}`, not the flat shape `AbstractDriver::parseWebhook()` currently assumes (F07 default); (2) Modempay's webhook signature is **HMAC-SHA512** over the raw body, header `x-modem-signature` — F18's plan currently says SHA256, update that before implementing
+
 ## F14 — ModempayDriver::charge() real implementation ✓
 - **Tests:** 9/9 passing (full suite 76/76) — `vendor/bin/pest`
 - **Files changed:** 3 (1 new, 2 modified)
