@@ -1,6 +1,38 @@
 # TODO
 
-## Active: F29 — Billable::subscribeToPlan() + InitiateRecurringChargeJob stub
+## Active: F30 — Billable::subscriptions() and Billable::subscribed()
+
+**Goal:** Two read-side helpers on the `Billable` trait. `subscriptions(): MorphMany` exposes all subscriptions for this billable (matches the existing `gmbPayCustomers`/`gmbPayCharges` style). `subscribed(?string $planSlug = null): bool` returns true when the billable holds at least one `Active` Subscription — optionally scoped to a specific plan slug.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Billable/SubscribedTest.php`:
+   - Test (a): `$billable->subscriptions` lists every Subscription tied to this billable (regardless of status). Two billables don't cross-contaminate
+   - Test (b): `subscribed()` returns `true` when at least one Subscription with `status === Active` exists
+   - Test (c): `subscribed()` returns `false` when the billable's only subscription is `Incomplete`, `Canceled`, `PastDue`, or `Paused` (not `Active`)
+   - Test (d): `subscribed('pro-monthly')` returns `true` only when the active subscription is for plan `pro-monthly` specifically — an active sub for a different plan returns `false` for this scoped check
+2. **Implement** in `src/Concerns/Billable.php`:
+   - `subscriptions(): MorphMany` → `$this->morphMany(Subscription::class, 'billable')`
+   - `subscribed(?string $planSlug = null): bool` — build a query: filter `status === SubscriptionStatus::Active`. When `$planSlug !== null`, join (or `whereHas`) on Plan to require the slug. Use `exists()` to short-circuit
+3. Run pest, tick, done, commit `F30: Billable::subscriptions() + subscribed()`
+
+### Files this feature will touch
+
+- `src/Concerns/Billable.php` (modified — adds two read helpers)
+- `tests/Billable/SubscribedTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the four new cases)
+- `subscribed()` is single-query (uses `exists()`, no N+1 hydration)
+- Scoping by plan slug works for the common "is user on Pro plan?" question
+
+### Notes for the implementer
+
+- For v1, "subscribed" means **`Active` only**. `PastDue` (within grace) doesn't count yet; that nuance can land with F35's grace enforcer if needed
+- Use `whereHas('plan', fn ($q) => $q->where('slug', $planSlug))` for the plan-scoped variant — keeps the query a single-statement EXISTS on the SQL side
 
 **Goal:** First business-logic feature in Phase F. `$billable->subscribeToPlan($planOrSlug, $opts)` creates a Subscription in `Incomplete`, attaches one default SubscriptionItem, optionally sets `trial_ends_at`, and dispatches `InitiateRecurringChargeJob` to kick off the first cycle. The job itself is a Queueable stub — F32 will fill in its handle() body.
 

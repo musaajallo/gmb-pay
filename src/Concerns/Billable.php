@@ -108,6 +108,22 @@ trait Billable
             ->first();
     }
 
+    public function subscriptions(): MorphMany
+    {
+        return $this->morphMany(Subscription::class, 'billable');
+    }
+
+    public function subscribed(?string $planSlug = null): bool
+    {
+        $query = $this->subscriptions()->where('status', SubscriptionStatus::Active);
+
+        if ($planSlug !== null) {
+            $query->whereHas('plan', fn ($q) => $q->where('slug', $planSlug));
+        }
+
+        return $query->exists();
+    }
+
     public function subscribeToPlan(Plan|string $plan, array $opts = []): Subscription
     {
         $plan = $plan instanceof Plan ? $plan : Plan::where('slug', $plan)->firstOrFail();

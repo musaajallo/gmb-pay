@@ -2,6 +2,17 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F30 — Billable::subscriptions() + subscribed() ✓
+- **Tests:** 4/4 passing (full suite 159/159) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Concerns/Billable.php` (modified — adds `subscriptions(): MorphMany` and `subscribed(?string $planSlug = null): bool`)
+  - `tests/Billable/SubscribedTest.php` (new)
+- **Lines:** +90 / -0
+- **Complexity:** Trivial — one morph relation + one EXISTS query
+- **Notes:**
+  - **"Subscribed" means `Active` only** for v1. `PastDue`, `Paused`, `Incomplete`, `Canceled` all return `false`. Test (c) iterates every non-Active status to lock the contract. F35's grace enforcer may relax this later (e.g., "subscribed within 3-day grace after past_due"), but adding nuance is easier than removing it
+  - **`subscribed($slug)` uses `whereHas`** rather than joining, keeping it a single EXISTS subquery. No N+1, no full collection hydration
+
 ## F29 — Billable::subscribeToPlan() + InitiateRecurringChargeJob stub ✓
 - **Tests:** 6/6 passing (full suite 155/155) — `vendor/bin/pest`
 - **Files changed:** 3 (2 new, 1 modified)
