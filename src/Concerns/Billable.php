@@ -27,4 +27,20 @@ trait Billable
             'id',
         )->where('gmb_pay_customers.billable_type', $this->getMorphClass());
     }
+
+    public function createGmbPayCustomer(?string $driver = null, array $opts = []): Customer
+    {
+        $driver = $driver ?? (string) config('gmb-pay.default', 'modempay');
+
+        return Customer::firstOrCreate(
+            [
+                'billable_type' => $this->getMorphClass(),
+                'billable_id' => $this->getKey(),
+                'driver' => $driver,
+            ],
+            [
+                'metadata' => $opts['metadata'] ?? [],
+            ],
+        );
+    }
 }

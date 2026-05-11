@@ -1,6 +1,54 @@
 # TODO
 
-## Active: F20 — Billable trait (gmbPayCustomers + gmbPayCharges)
+## Active: F21 — Billable::createGmbPayCustomer()
+
+**Goal:** Add a `createGmbPayCustomer(?string $driver = null, array $opts = []): Customer` helper to the `Billable` trait. Creates (or returns the existing) local `gmb_pay_customers` row for this billable+driver. Provider-side customer creation (a separate HTTP call to e.g. Modempay's `/v1/customers`) is **deferred** — F21 stays local-only per the original spec.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Billable/CreateGmbPayCustomerTest.php`:
+   - Test (a): `$billable->createGmbPayCustomer()` returns a `Customer` model with `billable_type === FakeBillable::class`, `billable_id === $billable->id`, `driver === 'modempay'` (the config default)
+   - Test (b): explicit driver argument is respected
+   - Test (c): calling twice with the same `(billable, driver)` returns the **same** `Customer` row (idempotent — `firstOrCreate` semantics)
+   - Test (d): `$opts['metadata']` is persisted on first create, and subsequent calls keep the original metadata (firstOrCreate doesn't overwrite when finding an existing row)
+   - Test (e): a billable can hold multiple customers under different drivers concurrently — `createGmbPayCustomer('modempay')` and `createGmbPayCustomer('wave')` produce two rows
+2. **Implement** in `src/Concerns/Billable.php`:
+   ```php
+   public function createGmbPayCustomer(?string $driver = null, array $opts = []): Customer
+   {
+       $driver = $driver ?? (string) config('gmb-pay.default', 'modempay');
+
+       return Customer::firstOrCreate(
+           [
+               'billable_type' => $this->getMorphClass(),
+               'billable_id' => $this->getKey(),
+               'driver' => $driver,
+           ],
+           [
+               'metadata' => $opts['metadata'] ?? [],
+           ],
+       );
+   }
+   ```
+3. Run `vendor/bin/pest`. Tick F21, append done.md entry, commit `F21: Billable::createGmbPayCustomer()`
+
+### Files this feature will touch
+
+- `src/Concerns/Billable.php` (modified — adds `createGmbPayCustomer()`)
+- `tests/Billable/CreateGmbPayCustomerTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the five new cases above)
+- The unique constraint on `(billable_type, billable_id, driver)` is the source of truth for idempotency — `firstOrCreate` reads it; we don't add an explicit transaction
+- **No** HTTP calls are made — provider customer creation lands later (probably F22 or a follow-up). F21 is local only
+
+### Notes for the implementer
+
+- The `provider_customer_id` column stays null — F22+ will populate it after the first successful charge or when a future helper creates a provider-side Customer
+- `firstOrCreate` is intentional over `create` to keep the trait method idempotent. Calling it on every login or every checkout shouldn't blow up
 
 **Goal:** Open Phase E by giving consuming apps a one-liner (`use Africs\GmbPay\Concerns\Billable`) on their `User` (or any Eloquent model) that exposes the relevant gmb-pay rows. F20 is just the relation surface — F21 adds the customer-creation helper, F22 wraps charging, F23 looks up by reference, F24 wraps refunds.
 

@@ -2,6 +2,19 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F21 — Billable::createGmbPayCustomer() ✓
+- **Tests:** 5/5 passing (full suite 121/121) — `vendor/bin/pest`
+- **Files changed:** 2 (1 new, 1 modified)
+  - `src/Concerns/Billable.php` (modified — adds `createGmbPayCustomer()` method)
+  - `tests/Billable/CreateGmbPayCustomerTest.php` (new)
+- **Lines:** +90 / -0
+- **Complexity:** Low — single `firstOrCreate` call
+- **Notes:**
+  - **`firstOrCreate` semantics** make the call safe to invoke repeatedly. Calling on every login or every checkout returns the existing row instead of throwing on the `(billable_type, billable_id, driver)` unique constraint. Test (c) and (d) lock that the second call returns the same row AND doesn't overwrite the original `metadata`
+  - **`metadata` is `firstOrCreate`'s "create-only" payload** — passed as the second argument, it's only persisted when the row is created. Subsequent calls with different metadata silently keep the original. If a caller wants to update metadata they should mutate the model directly (`$customer->update(['metadata' => $new])`) — explicit beats firstOrCreate-as-update
+  - **`provider_customer_id` stays null** — F21 is local-only per the original spec. F22 (or a follow-up) is where a real driver call to `/v1/customers` (Modempay) lands and back-fills this column on first charge
+  - **Default driver from config** is read via `config('gmb-pay.default', 'modempay')` so apps that flip their gmb-pay default at runtime get the right driver here too. The `(string)` cast guards against config returning `null`
+
 ## F20 — Billable trait — gmbPayCustomers + gmbPayCharges ✓
 - **Tests:** 4/4 passing (full suite 116/116) — `vendor/bin/pest`
 - **Files changed:** 3 (1 new, 2 modified)
