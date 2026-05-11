@@ -2,6 +2,18 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F61 — CHANGELOG.md + 0.1.0-alpha tag ✓
+- **Files changed:** 1 new + annotated git tag
+  - `CHANGELOG.md` (new — Keep a Changelog format)
+  - Tag `0.1.0-alpha` on this commit (annotated, includes scope summary)
+- **Lines:** +95 / -0
+- **Notes:**
+  - **Scope of `0.1.0-alpha`:** everything shipped this session + the prior F01–F09 work. ~37 features across Phases A–G plus Phase K (release tooling). Phase H (views) and Phase J (Phase-2 driver stubs) explicitly deferred — see CHANGELOG "Known limitations"
+  - **Why alpha and not beta:** Modempay refund is blocked, Wave/Waychit are demo-only. The package is production-shape but its real-world surface is incomplete until merchant access for the other gateways lands
+  - **The tag is reproducible** as `composer require africs/gmb-pay:^0.1.0-alpha@dev` (the `@dev` minimum-stability is needed because of the `-alpha` suffix). Once a stable `0.1.0` ships, the `@dev` drops
+  - **CHANGELOG also documents the tested matrix** so future-you can see at a glance what's vetted
+  - F60 (CONTRIBUTING.md) intentionally skipped — solo package, no contribution flow to document yet
+
 ## F56 — GitHub Actions CI workflow ✓
 - **Files changed:** 1 (1 new)
   - `.github/workflows/tests.yml` (new — matrix CI: PHP 8.3/8.4 × Laravel 11.* / 12.* / 13.*, plus pinned Testbench per Laravel)

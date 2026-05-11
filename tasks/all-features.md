@@ -139,7 +139,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - [x] **F58** — `phpstan.neon` (Larastan, level 6 to start, can ratchet up)
 - [x] **F59** — `README.md` expansion: full usage examples for charges, subscriptions, custom driver registration, webhook signing in tests
 - [ ] **F60** — `CONTRIBUTING.md`: TDD expectation, commit message format, how to add a new driver
-- [ ] **F61** — `CHANGELOG.md` (Keep a Changelog format) + first `0.1.0-alpha` tag once F01–F45 land
+- [x] **F61** — `CHANGELOG.md` (Keep a Changelog format) + first `0.1.0-alpha` tag (shipped without Phase H views — those deferred indefinitely)
 
 ---
 

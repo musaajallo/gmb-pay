@@ -1,8 +1,8 @@
 # TODO
 
-## Active: F61 — CHANGELOG.md + 0.1.0-alpha tag
+## Active
 
-Create `CHANGELOG.md` in Keep-a-Changelog format with one `## [0.1.0-alpha] - 2026-05-11` section summarising the shipped scope. Tag the commit as `0.1.0-alpha`. Note in the entry that F16 (Modempay refund) is BLOCKED and F46-F49 + F53-F55 are inherently blocked on merchant access for Wave/Waychit/Gamswitch/QMoney/Africell.
+_(no feature in flight — `0.1.0-alpha` shipped 2026-05-11)_
 
 Comprehensive rewrite covering install, Billable trait API, one-shot charges, subscriptions, webhooks (auto-registered listeners table), refunds (with Modempay-block note), demo mode, Modempay-specific quirks, troubleshooting. Replaces the scaffold-era README. No tests — this is docs.
 
