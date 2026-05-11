@@ -1,6 +1,42 @@
 # TODO
 
-## Active: F26 — gmb_pay_subscriptions migration + Subscription model
+## Active: F27 — gmb_pay_subscription_items migration + SubscriptionItem model
+
+**Goal:** Many-to-one child of Subscription that records `quantity` and `unit_amount_minor`. The subscription's total per cycle is `sum(items.quantity * items.unit_amount_minor)`. For the common single-plan case there will be exactly one item per subscription.
+
+### Steps
+
+1. **RED — write the test first** at `tests/Persistence/SubscriptionItemTest.php`:
+   - Test (a): migrations create `gmb_pay_subscription_items` with columns `id, subscription_id, quantity, unit_amount_minor, created_at, updated_at`
+   - Test (b): persists an item linked to a Subscription; `quantity` and `unit_amount_minor` cast to `int`
+   - Test (c): `subscription()` belongsTo + `Subscription::items()` hasMany resolve correctly (need to add `items()` to the Subscription model)
+   - Test (d): deleting the parent Subscription cascades — child items go away (`cascadeOnDelete()` on the FK)
+2. **Migration** `database/migrations/2026_01_01_000009_create_gmb_pay_subscription_items_table.php`:
+   - `id`, `foreignId('subscription_id')->constrained('gmb_pay_subscriptions')->cascadeOnDelete()`, `unsignedInteger('quantity')->default(1)`, `unsignedBigInteger('unit_amount_minor')`, `timestamps()`
+3. **SubscriptionItem model** `src/Models/SubscriptionItem.php`:
+   - `$casts = ['quantity' => 'int', 'unit_amount_minor' => 'int']`
+   - `subscription(): BelongsTo`
+4. **Subscription model** (`src/Models/Subscription.php`) — add `items(): HasMany` relation pointing to `SubscriptionItem::class`
+5. Run `vendor/bin/pest`. Tick F27, append done.md entry, commit `F27: gmb_pay_subscription_items migration + SubscriptionItem model`
+
+### Files this feature will touch
+
+- `database/migrations/2026_01_01_000009_create_gmb_pay_subscription_items_table.php` (new)
+- `src/Models/SubscriptionItem.php` (new)
+- `src/Models/Subscription.php` (modified — add `items()` HasMany)
+- `tests/Persistence/SubscriptionItemTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the four new cases above)
+- Cascade delete from Subscription → items is observable (test d)
+
+### Notes for the implementer
+
+- `quantity` default 1 covers the dominant single-plan case so F29 can just `subscription->items()->create(['unit_amount_minor' => $plan->amount_minor])` and let quantity ride on its default
+- No `currency` on items — items inherit it from `Subscription → Plan`. Keeping currency on a single source of truth avoids divergence
 
 **Goal:** A subscription ties a Billable to a Plan via a chosen `driver`, tracks its lifecycle in `status` and its current period in `current_period_*`, and supports trials + scheduled cancellation. F31 layers in helper methods (`cancel()`, `resume()`, `markPastDue()`, etc.) — F26 is pure persistence.
 

@@ -27,6 +27,7 @@ abstract class TestCase extends Orchestra
     {
         $app['config']->set('gmb-pay.demo_mode', true);
         $app['config']->set('gmb-pay.default', 'modempay');
+        $app['config']->set('database.connections.testing.foreign_key_constraints', true);
     }
 
     protected function defineDatabaseMigrations(): void

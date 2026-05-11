@@ -2,6 +2,21 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F27 — gmb_pay_subscription_items migration + SubscriptionItem model ✓
+- **Tests:** 4/4 passing (full suite 145/145) — `vendor/bin/pest`
+- **Files changed:** 4 (3 new, 1 modified, +1 fixture tweak)
+  - `database/migrations/2026_01_01_000009_create_gmb_pay_subscription_items_table.php` (new)
+  - `src/Models/SubscriptionItem.php` (new — `subscription()` belongsTo, int casts)
+  - `src/Models/Subscription.php` (modified — adds `items(): HasMany`)
+  - `tests/Persistence/SubscriptionItemTest.php` (new)
+  - `tests/TestCase.php` (modified — enables `foreign_key_constraints` on the testing SQLite connection)
+- **Lines:** +145 / -1
+- **Complexity:** Low — single child table, two relations, one config flip in tests
+- **Notes:**
+  - **Enabling `foreign_key_constraints` on the SQLite test connection** was necessary to make the cascade-delete test actually fire. SQLite ships with FKs **off** by default; Orchestra Testbench's in-memory test DB inherits that. Without the pragma, the F03/F27 `cascadeOnDelete()` declarations are decorative only at test time. Real MySQL/Postgres enforce FKs natively. Setting `database.connections.testing.foreign_key_constraints = true` in `TestCase::defineEnvironment` is the single source of truth — every persistence test now exercises real cascade behaviour
+  - **`quantity` default 1** lets F29 do `subscription->items()->create(['unit_amount_minor' => $plan->amount_minor])` for the single-plan case and skip the quantity field
+  - **No `currency` on items** — they inherit it from `Subscription → Plan`. Single source of truth avoids drift if a plan's currency ever changes (it shouldn't, but the schema doesn't have to enable the drift)
+
 ## F26 — gmb_pay_subscriptions migration + Subscription model ✓
 - **Tests:** 3/3 passing (full suite 141/141) — `vendor/bin/pest`
 - **Files changed:** 4 (4 new)
