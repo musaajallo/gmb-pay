@@ -1,6 +1,60 @@
 # TODO
 
-## Active: F15 — ModempayDriver::verify() real implementation
+## Active: F17 — ModempayDriver::payout() via /v1/transfers
+
+**Goal:** Send mobile-money payouts through Modempay's `POST /v1/transfers` endpoint. Demo mode keeps the AbstractDriver stub; non-demo mode posts a flat (not `data`-wrapped) body and maps the response to a `PayoutResult`. F16 is blocked on Modempay's missing public refund endpoint — F17 keeps moving Phase D forward in the meantime.
+
+**Modempay endpoint (per `https://docs.modempay.com/documentation/payouts/mobile-money`):**
+
+- `POST https://api.modempay.com/v1/transfers`
+- **Body is flat** (unlike `/v1/payments` which is wrapped in `"data"`)
+- Required: `amount`, `currency`, `network`, `account_number`, `beneficiary_name`
+- Optional: `narration`, `metadata`, `callback_url`
+- Response fields include `id`, `status`, `transfer_reference`, `amount`, `currency`, `fee`, `account_number`, `network`, `account_name`, `events`, etc.
+- Status vocabulary: `pending`, `completed`, `failed`, `cancelled`
+
+### Steps
+
+1. **PayoutStatus enum** (`src/Enums/PayoutStatus.php`):
+   - Add `case Cancelled = 'cancelled';` — Modempay can return it. Pre-1.0, no migration concerns
+2. **RED — write the test first** at `tests/Drivers/Modempay/ModempayDriverPayoutTest.php`:
+   - `beforeEach`: turn off demo mode, set `secret_key`/`base_url` config
+   - Test (a): POST to `https://api.modempay.com/v1/transfers` with a **flat** body containing `amount`, `currency`, `network` (pulled from `metadata['network']`), `account_number === recipientPhone`, `beneficiary_name === recipientName`, `narration === description`, `metadata` (with `network` key still present). Bearer auth
+   - Test (b): status mapping data set — `pending → Pending`, `completed → Succeeded`, `failed → Failed`, `cancelled → Cancelled`. `PayoutResult.providerReference` comes from response `id`; `reference` is locally generated (`'pyt_' . Str::random(20)`)
+   - Test (c): omitting `metadata['network']` raises a `GmbPayException` with a message naming the missing field (does not call out to Modempay)
+   - Test (d): 4xx surfaces as `GmbPayException` via the shared `throwIfNotSuccessful()` helper
+   - Test (e): demo mode falls through to `AbstractDriver::payout()` (PayoutResult with `Succeeded` + `'demo_payout_...'` reference) and makes zero HTTP calls
+3. **Implement** `ModempayDriver::payout(PayoutRequest $request): PayoutResult`:
+   - Demo branch first
+   - Pull `$network = $request->metadata['network'] ?? null`. If null/empty, `throw new GmbPayException('Modempay payout requires metadata["network"] (mobile-money provider code).');`
+   - Build flat body — note this is **not** wrapped in `data`
+   - POST via the client, route 4xx through `throwIfNotSuccessful($response, 'payout')`
+   - Parse response: `$data` may be wrapped in `data` or flat; tolerate both like F15
+   - Map status via private `statusFromModempayPayout(string): PayoutStatus`
+   - Return `PayoutResult` with `reference: 'pyt_' . Str::random(20)`, `providerReference: (string) ($data['id'] ?? '')`, `amountMinor`, `currency`, `raw: $data`
+4. Run `vendor/bin/pest`. Tick F17, append done.md entry, commit `F17: ModempayDriver::payout() via /v1/transfers`
+
+### Files this feature will touch
+
+- `src/Enums/PayoutStatus.php` (modified — add `Cancelled`)
+- `src/Drivers/Modempay/ModempayDriver.php` (modified — adds `payout()` override + private `statusFromModempayPayout()`)
+- `tests/Drivers/Modempay/ModempayDriverPayoutTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green, including the new cases above)
+- The body sent on the wire is **flat** (not `data`-wrapped)
+- A `PayoutRequest` without `metadata['network']` raises `GmbPayException` *before* any HTTP call (assert `Http::assertNothingSent()`)
+- Demo-mode path is unchanged
+
+### Notes for the implementer
+
+- **The `network` field is Modempay-specific.** Our `PayoutRequest` DTO doesn't have it as a top-level property (other drivers may not need it). Funnel it through `metadata['network']` for now and document the requirement in the exception message. If Wave/Waychit also turn out to need a similar field, F46+ can decide whether to promote it to the DTO
+- Response wrapping: the docs don't show a literal example for `/v1/transfers`. Tolerate both shapes like F15 does (`$response->json('data') ?? $response->json() ?? []`)
+- The PaymentDriver capability-split clause in F17's original spec (`SupportsPayouts` interface) is **not exercised here** — Modempay supports payouts, so we just implement it. The split becomes worth doing when a non-payout driver lands (Waychit?) — defer to that feature
+- F18 (webhook signature) is next: remember to use HMAC-**SHA512** with header `x-modem-signature` per `https://docs.modempay.com/documentation/core/webhooks`, not SHA256 from the original plan
 
 **Goal:** Server-side verification of a Modempay payment intent after the customer returns from the hosted checkout. `verify($reference)` takes the **`intent_secret`** (Modempay's verifier token, returned in `ChargeResult.raw.intent_secret` when F14 created the intent) and returns a `ChargeResult` with the live provider status. Demo mode keeps using the AbstractDriver stub. 4xx → `GmbPayException`.
 

@@ -6,8 +6,11 @@ namespace Africs\GmbPay\Drivers\Modempay;
 
 use Africs\GmbPay\DataObjects\ChargeRequest;
 use Africs\GmbPay\DataObjects\ChargeResult;
+use Africs\GmbPay\DataObjects\PayoutRequest;
+use Africs\GmbPay\DataObjects\PayoutResult;
 use Africs\GmbPay\Drivers\AbstractDriver;
 use Africs\GmbPay\Enums\ChargeStatus;
+use Africs\GmbPay\Enums\PayoutStatus;
 use Africs\GmbPay\Exceptions\GmbPayException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Str;
@@ -86,6 +89,56 @@ class ModempayDriver extends AbstractDriver
             providerReference: null,
             raw: $data,
         );
+    }
+
+    public function payout(PayoutRequest $request): PayoutResult
+    {
+        if ($this->isDemo()) {
+            return parent::payout($request);
+        }
+
+        $network = $request->metadata['network'] ?? null;
+        if (! is_string($network) || $network === '') {
+            throw new GmbPayException('Modempay payout requires metadata["network"] (mobile-money provider code).');
+        }
+
+        $body = array_filter([
+            'amount' => $request->amountMinor,
+            'currency' => $request->currency,
+            'network' => $network,
+            'account_number' => $request->recipientPhone,
+            'beneficiary_name' => $request->recipientName,
+            'narration' => $request->description,
+            'metadata' => $request->metadata,
+        ], static fn ($value) => $value !== null);
+
+        $response = $this->client()->request('POST', '/v1/transfers', $body);
+
+        $this->throwIfNotSuccessful($response, 'payout');
+
+        $data = $response->json('data');
+        if (! is_array($data)) {
+            $data = (array) ($response->json() ?? []);
+        }
+
+        return new PayoutResult(
+            reference: 'pyt_' . Str::random(20),
+            status: $this->statusFromModempayPayout((string) ($data['status'] ?? '')),
+            amountMinor: (int) ($data['amount'] ?? $request->amountMinor),
+            currency: (string) ($data['currency'] ?? $request->currency),
+            providerReference: isset($data['id']) && is_string($data['id']) ? $data['id'] : null,
+            raw: $data,
+        );
+    }
+
+    private function statusFromModempayPayout(string $status): PayoutStatus
+    {
+        return match ($status) {
+            'completed' => PayoutStatus::Succeeded,
+            'failed' => PayoutStatus::Failed,
+            'cancelled' => PayoutStatus::Cancelled,
+            default => PayoutStatus::Pending,
+        };
     }
 
     private function throwIfNotSuccessful(Response $response, string $operation): void

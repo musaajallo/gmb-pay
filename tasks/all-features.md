@@ -76,7 +76,7 @@ This file is the master plan. A fresh Claude session (or human) should be able t
 - [x] **F14** — `ModempayDriver::charge()` — POST to the payment-intents endpoint, return `ChargeResult` with `checkoutUrl` populated. Handle 4xx → `GmbPayException`
 - [x] **F15** — `ModempayDriver::verify()` — GET payment-intent by reference, map provider status to `ChargeStatus`
 - [ ] **F16** — *(BLOCKED — no public refund API)* `ModempayDriver::refund()` — POST refund, map to `RefundResult`
-- [ ] **F17** — `ModempayDriver::payout()` — only if Modempay supports payouts; otherwise throw `BadMethodCallException` with a clear message and remove from contract via capability split (decide at implementation time)
+- [x] **F17** — `ModempayDriver::payout()` — only if Modempay supports payouts; otherwise throw `BadMethodCallException` with a clear message and remove from contract via capability split (decide at implementation time)
 - [ ] **F18** — `ModempayDriver::webhookSignatureValid()` — HMAC-SHA256 of raw request body using `webhook_secret`, compared in constant time
 - [ ] **F19** — `ModempayDriver::parseWebhook()` — map provider event types (`charge.succeeded`, `charge.cancelled`, etc.) to `WebhookEventType`, extract `provider_event_id`, `provider_reference`
 

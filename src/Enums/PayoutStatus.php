@@ -9,4 +9,5 @@ enum PayoutStatus: string
     case Pending = 'pending';
     case Succeeded = 'succeeded';
     case Failed = 'failed';
+    case Cancelled = 'cancelled';
 }

@@ -2,6 +2,22 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F17 — ModempayDriver::payout() via /v1/transfers ✓
+- **Tests:** 8/8 passing (full suite 94/94) — `vendor/bin/pest`
+- **Files changed:** 3 (1 new, 2 modified)
+  - `src/Enums/PayoutStatus.php` (modified — added `Cancelled = 'cancelled'`)
+  - `src/Drivers/Modempay/ModempayDriver.php` (modified — `payout()` override + private `statusFromModempayPayout()`)
+  - `tests/Drivers/Modempay/ModempayDriverPayoutTest.php` (new)
+- **Lines:** +150 / -1
+- **Complexity:** Low — same shape as F14, except the body is flat (not wrapped in `data`)
+- **Notes:**
+  - **F16 was marked BLOCKED first** (separate `docs:` commit `f5e1fbe`) — Modempay's public docs document a `refunded` transaction status but no endpoint to create one. F17 went next in the Phase D order so Phase D keeps progressing
+  - **`network` lives in `PayoutRequest::$metadata['network']`**, not as a top-level DTO property. Modempay requires it (mobile-money provider code like `africell`, `qcell`, `gamcel`) but other drivers won't, so promoting it to the DTO would be invasive. Driver throws a `GmbPayException` *before* any HTTP call when it's missing — test (c) locks the no-network-no-request invariant
+  - **Body is flat, not `data`-wrapped** — different from `/v1/payments`. Easy to miss; the test explicitly asserts `($req['data'] ?? null) === null` to guard against accidentally copying F14's shape
+  - **Payout status mapping**: `completed → Succeeded`, `failed → Failed`, `cancelled → Cancelled`, everything else → `Pending`. The `Cancelled` case wasn't in `PayoutStatus` before; added it as part of this feature
+  - **Response wrapping tolerance** (same pattern as F15): tries `$response->json('data')` first, falls back to flat. Modempay's `/v1/transfers` example didn't show a literal response wrapper either way
+  - **No capability split** (`SupportsPayouts` interface) introduced here. Modempay supports payouts, so we just implement; the split becomes worthwhile when a non-payout driver lands (Waychit may not). Defer to that feature
+
 ## F15 — ModempayDriver::verify() real implementation ✓
 - **Tests:** 10/10 passing (full suite 86/86) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)
