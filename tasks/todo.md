@@ -1,8 +1,8 @@
 # TODO
 
-## Active: F58 — Larastan (PHPStan) config
+## Active: F56 — GitHub Actions CI workflow
 
-Add `larastan/larastan` dev dep + `phpstan.neon` at level 6 covering `src/`. Run, fix anything surfaced. Commit as `F58: Larastan config`.
+Matrix PHP {8.3, 8.4} × Laravel {11, 12, 13}. Steps: composer install, `vendor/bin/pint --test`, `vendor/bin/phpstan analyse`, `vendor/bin/pest`. Commit `F56: GitHub Actions CI workflow`.
 
 Comprehensive rewrite covering install, Billable trait API, one-shot charges, subscriptions, webhooks (auto-registered listeners table), refunds (with Modempay-block note), demo mode, Modempay-specific quirks, troubleshooting. Replaces the scaffold-era README. No tests — this is docs.
 

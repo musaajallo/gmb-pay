@@ -8,6 +8,18 @@ use Africs\GmbPay\Enums\InvoiceStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $subscription_id
+ * @property int|null $charge_id
+ * @property int $amount_minor
+ * @property string $currency
+ * @property InvoiceStatus $status
+ * @property \Illuminate\Support\Carbon $period_start
+ * @property \Illuminate\Support\Carbon $period_end
+ * @property-read Subscription|null $subscription
+ * @property-read Charge|null $charge
+ */
 class Invoice extends Model
 {
     protected $table = 'gmb_pay_invoices';

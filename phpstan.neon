@@ -1,0 +1,26 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 6
+    paths:
+        - src
+    excludePaths:
+        - vendor
+        - tasks
+        - guide
+    ignoreErrors:
+        - identifier: missingType.iterableValue
+        - identifier: missingType.generics
+        # The Billable trait is only used by consuming apps + the test fixture
+        # (tests/ is excluded from analysis). Larastan can't see those users.
+        - identifier: trait.unused
+        # $subscription->billable is a polymorphic Model — callers attach the
+        # Billable trait but PHPStan can't statically prove every billable
+        # implements it. Real-world usage requires `use Billable;` per F20 docs.
+        -
+            message: '#Call to an undefined method Illuminate\\Database\\Eloquent\\Model::createGmbPayCustomer\(\)#'
+            path: src/Jobs/InitiateRecurringChargeJob.php
+
+    checkOctaneCompatibility: false
+    checkModelProperties: true

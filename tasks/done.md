@@ -2,6 +2,24 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F58 — Larastan (PHPStan) config — clean at level 6 ✓
+- **Tests:** 186/186 still passing — `vendor/bin/pest` (no behavior changes)
+- **Static analysis:** `vendor/bin/phpstan analyse` — **0 errors at level 6**
+- **Files changed:** 10 (1 new, 1 dep add, 7 models annotated, 1 config)
+  - `phpstan.neon` (new — level 6, `src/` scope, three targeted ignores)
+  - `composer.json` (modified — `larastan/larastan ^3.0` dev dep; Larastan v3.9.6 resolved)
+  - All seven models in `src/Models/` (`Plan`, `Subscription`, `SubscriptionItem`, `Invoice`, `Charge`, `Refund`, `Customer`) got `@property`/`@property-read` docblocks
+- **Lines:** +130 / -10
+- **Complexity:** Medium — required reading every Larastan complaint and deciding fix-vs-ignore per pattern
+- **Notes:**
+  - **Three targeted ignores** in `phpstan.neon` with comments explaining each:
+    - `missingType.iterableValue` — would force `array<string, mixed>` on every callable signature; cosmetic
+    - `missingType.generics` — would force `BelongsTo<RelatedModel, DeclaringModel>` on every relation method; Laravel itself doesn't ship these
+    - `trait.unused` — `Billable` is used by consuming apps + the FakeBillable fixture (in tests/, which we exclude from analysis); Larastan can't see them
+    - Plus one path-scoped ignore for `Model::createGmbPayCustomer()` in `InitiateRecurringChargeJob` — `$subscription->billable` is `Model` (polymorphic) and PHPStan can't statically prove every billable uses the trait
+  - **Model `@property` docblocks** are the canonical Laravel-package fix for PHPStan finding "undefined property" on Eloquent dynamic attributes. They double as IDE autocomplete hints — every consumer of the package now gets typed completions on `$charge->reference`, `$invoice->subscription`, etc., regardless of whether they use PHPStan themselves
+  - **Level 6 is the realistic ceiling** without going full generic-everything. Ratchet to 8 later if it ever feels worth it; for an alpha-grade package, 6 catches real bugs without forcing busywork
+
 ## F57 — Pint config + first format pass ✓
 - **Tests:** 186/186 still passing — `vendor/bin/pest` (cosmetic changes only)
 - **Files changed:** 27 (1 new, 1 dep add, 25 reformatted)

@@ -8,6 +8,17 @@ use Africs\GmbPay\Enums\PlanInterval;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @property int $id
+ * @property string $slug
+ * @property string $name
+ * @property int $amount_minor
+ * @property string $currency
+ * @property PlanInterval $interval
+ * @property int $interval_count
+ * @property int $trial_days
+ * @property bool $active
+ */
 class Plan extends Model
 {
     protected $table = 'gmb_pay_plans';

@@ -5,11 +5,29 @@ declare(strict_types=1);
 namespace Africs\GmbPay\Models;
 
 use Africs\GmbPay\Enums\SubscriptionStatus;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
+/**
+ * @property int $id
+ * @property string $billable_type
+ * @property int $billable_id
+ * @property int $plan_id
+ * @property string $driver
+ * @property SubscriptionStatus $status
+ * @property \Illuminate\Support\Carbon|null $current_period_start
+ * @property \Illuminate\Support\Carbon|null $current_period_end
+ * @property bool $cancel_at_period_end
+ * @property \Illuminate\Support\Carbon|null $canceled_at
+ * @property \Illuminate\Support\Carbon|null $trial_ends_at
+ * @property-read Model|null $billable
+ * @property-read Plan|null $plan
+ * @property-read Collection<int, SubscriptionItem> $items
+ * @property-read Collection<int, Invoice> $invoices
+ */
 class Subscription extends Model
 {
     protected $table = 'gmb_pay_subscriptions';
