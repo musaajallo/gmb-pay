@@ -31,6 +31,8 @@ composer install                          # deps (Pest 4, Orchestra Testbench 11
 
 `phpunit.xml` boots Pest with `APP_ENV=testing` and `GMB_PAY_DEMO=true`. The test base class `Africs\GmbPay\Tests\TestCase` (extends Orchestra Testbench) registers the service provider, aliases the `GmbPay` facade, and `defineDatabaseMigrations()` loads `tests/Fixtures/migrations/` (for the `FakeBillable` morph owner) **plus** `database/migrations/` (the package's own migrations). Persistence tests inherit this for free — don't re-load migrations manually.
 
+Tests are organized by surface: `tests/Webhook/` for the controller/listener path, `tests/Persistence/` for model+migration tests, plus root-level `SmokeTest.php`. New tests should follow this split.
+
 There is no Pint/PHPStan config yet (those are F57/F58 in the plan).
 
 ## Architecture
@@ -45,7 +47,7 @@ This is why a Phase-1 driver like `ModempayDriver` is currently a one-method fil
 
 **DTOs and enums are immutable and explicit.** All DataObjects in `src/DataObjects/` are `final readonly class` with constructor property promotion only — no setters, no array-shape `$data`. All enums in `src/Enums/` are backed string enums. **Currency is always in minor units (`amountMinor: int`)** in code and DB; never floats. GMD is the default currency.
 
-**Webhook surface.** `routes/webhooks.php` (auto-loaded by the service provider) exposes `POST {prefix}/{driver}` → `WebhookController::handle()`. The controller resolves the driver via the manager, validates signature (`webhookSignatureValid()`), parses (`parseWebhook()`), and dispatches `Africs\GmbPay\Events\WebhookReceived` carrying a `WebhookEvent` DTO. Persistence (F07) and listener auto-registration (F10) are not yet wired — `parseWebhook` defaults to `WebhookEventType::Unknown`.
+**Webhook surface.** `routes/webhooks.php` (auto-loaded by the service provider) exposes `POST {prefix}/{driver}` → `WebhookController::handle()`. The controller resolves the driver via the manager, validates the signature (`webhookSignatureValid()`), parses (`parseWebhook()`), persists a `WebhookEvent` row (with dedup on `event_id` per F07), and dispatches `Africs\GmbPay\Events\WebhookReceived` carrying a `WebhookEvent` DTO. Two listeners live in `src/Listeners/` — `UpdateChargeFromWebhook` and `UpdateRefundFromWebhook` — and advance the corresponding Eloquent rows on `charge.*` / `refund.*` events. Whether they're registered automatically is the `gmb-pay.events.auto_register` switch (F10, in flight on `main`).
 
 **Service provider responsibilities** (`GmbPayServiceProvider`):
 - merges `config/gmb-pay.php`, registers the manager singleton + `gmb-pay` alias,
@@ -59,6 +61,7 @@ This is why a Phase-1 driver like `ModempayDriver` is currently a one-method fil
 - Custom exceptions extend `Africs\GmbPay\Exceptions\GmbPayException`.
 - Demo mode (`GMB_PAY_DEMO=true`) is the default for tests and local dev — drivers must keep their demo path working when adding real implementations (override the method, but call/match the demo branch when `isDemo()` is true if the test needs to keep passing).
 - Capability split: drivers that support extras implement `SupportsRecurring` / `SupportsTokenization` (in `src/Contracts/`) instead of bloating `PaymentDriver`.
+- Heads-up: `WebhookEvent` is **two** classes — the DTO at `src/DataObjects/WebhookEvent.php` (what `WebhookReceived` carries) and the Eloquent model at `src/Models/WebhookEvent.php` (the persisted row). Disambiguate with the full namespace when both are in scope.
 - The `tasks/all-features.md` **Context** section lists external docs to consult during implementation; use **context7** (the MCP server) when you need Laravel 13 or Modempay docs — don't rely on training data.
 
 ## Commits and PRs
