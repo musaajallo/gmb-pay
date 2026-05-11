@@ -6,13 +6,11 @@ namespace Africs\GmbPay\Jobs;
 
 use Africs\GmbPay\DataObjects\ChargeRequest;
 use Africs\GmbPay\Enums\InvoiceStatus;
-use Africs\GmbPay\Enums\PlanInterval;
 use Africs\GmbPay\Enums\SubscriptionStatus;
 use Africs\GmbPay\Models\Charge;
 use Africs\GmbPay\Models\Invoice;
 use Africs\GmbPay\Models\Subscription;
 use Africs\GmbPay\PaymentManager;
-use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -49,7 +47,7 @@ class InitiateRecurringChargeJob implements ShouldQueue
         }
 
         $amount = (int) $sub->items->sum(fn ($item) => $item->quantity * $item->unit_amount_minor);
-        $end = $this->addInterval($start, $sub->plan->interval, $sub->plan->interval_count);
+        $end = $sub->plan->nextPeriodEnd($start);
 
         $driver = app(PaymentManager::class)->driver($sub->driver);
 
@@ -94,13 +92,4 @@ class InitiateRecurringChargeJob implements ShouldQueue
         ])->save();
     }
 
-    private function addInterval(Carbon $start, PlanInterval $interval, int $count): Carbon
-    {
-        return match ($interval) {
-            PlanInterval::Day => $start->copy()->addDays($count),
-            PlanInterval::Week => $start->copy()->addWeeks($count),
-            PlanInterval::Month => $start->copy()->addMonths($count),
-            PlanInterval::Year => $start->copy()->addYears($count),
-        };
-    }
 }

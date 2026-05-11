@@ -1,6 +1,47 @@
 # TODO
 
-## Active: F36 — Schedule documentation in InstallCommand
+## Active: F37 — MarkInvoicePaidFromWebhook listener (charge.succeeded → invoice paid + past_due recovery)
+
+**Goal:** When a `charge.succeeded` webhook arrives for a Charge that's linked to an Invoice, flip the Invoice to `Paid`. If the parent Subscription was `PastDue`, recover it to `Active` and re-advance `current_period_*` (a successful retry restarts the cycle clock). Normal-flow subs (already Active) get the Invoice paid but no period change — F32 already advanced the period optimistically at cycle dispatch time.
+
+### Steps
+
+1. **Plan helper** — add `Plan::nextPeriodEnd(Carbon $start): Carbon` static-ish instance method that returns `$start + interval * interval_count`. Refactor `InitiateRecurringChargeJob::addInterval()` to call it; remove the private helper. F32 + F37 both go through one source of truth
+2. **RED — write the test first** at `tests/Webhook/MarkInvoicePaidFromWebhookTest.php`:
+   - Auto-register is on by default (F10) so the listener fires automatically when `WebhookReceived` dispatches
+   - Test (a, normal flow): Active subscription, Open invoice linked to a Charge. POST a wrapped Modempay `charge.succeeded` webhook (using F19's shape) referencing `payment_intent_id` matching the Charge's `provider_reference`. Assert Invoice flips to `Paid`. Subscription stays `Active`, `current_period_end` unchanged
+   - Test (b, past_due recovery): PastDue subscription with an Open invoice. After the webhook: Invoice `Paid`, Subscription `Active`, `current_period_start ≈ now`, `current_period_end ≈ now + plan.interval`
+   - Test (c, orphan): charge.succeeded for a Charge with NO linked Invoice → invoice count stays 0; no exception; F08's listener still updates the Charge to Succeeded (already covered by F08 tests, just don't regress)
+3. **Implement** `src/Listeners/MarkInvoicePaidFromWebhook.php` mirroring F08's shape:
+   - Skip when not `WebhookEventType::ChargeSucceeded`
+   - Look up Charge by `(driver, provider_reference)`
+   - Find Invoice by `charge_id`; if none, return
+   - `$invoice->update(['status' => InvoiceStatus::Paid])`
+   - Load `$invoice->subscription`. If `PastDue`: flip to Active + `current_period_start = now`, `current_period_end = $sub->plan->nextPeriodEnd(now())`
+4. **Register** in `GmbPayServiceProvider::boot()` — add `Event::listen(WebhookReceived::class, MarkInvoicePaidFromWebhook::class)` inside the existing `auto_register` block
+5. Run pest. Tick F37. Done entry. Commit `F37: MarkInvoicePaidFromWebhook listener — invoice paid + past_due recovery`
+
+### Files this feature will touch
+
+- `src/Models/Plan.php` (modified — `nextPeriodEnd()` helper)
+- `src/Jobs/InitiateRecurringChargeJob.php` (modified — use the new helper, drop private `addInterval`)
+- `src/Listeners/MarkInvoicePaidFromWebhook.php` (new)
+- `src/GmbPayServiceProvider.php` (modified — register listener)
+- `tests/Webhook/MarkInvoicePaidFromWebhookTest.php` (new)
+- `tasks/all-features.md` (check the box)
+- `tasks/done.md` (append entry)
+
+### Done criteria
+
+- All Pest tests pass (full suite green)
+- Active-flow webhooks mark the Invoice Paid without re-advancing the period (F32 already did)
+- PastDue-recovery webhooks flip the sub to Active AND advance the period
+- Orphan charges (no Invoice) don't trip the listener — `where('charge_id')->first()` returns null and we return silently
+
+### Notes for the implementer
+
+- F08's `UpdateChargeFromWebhook` listener still runs alongside this one (both registered). The order doesn't matter — F08 just updates Charge.status; F37 reads the Charge's id (which it already had) and works on the Invoice/Subscription side
+- The PastDue recovery path is the canonical "their retry succeeded" flow — pairs with F33's RetryFailedChargeJob and F38's webhook → retry trigger
 
 **Goal:** When `gmb-pay:install` finishes, the "Next steps" output points the user at scheduling the cycle command in their `routes/console.php`. Docs-only feature.
 

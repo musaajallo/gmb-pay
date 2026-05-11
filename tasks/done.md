@@ -2,6 +2,23 @@
 
 _Completed features logged here with metadata. Append one block per feature when you tick it in `all-features.md`._
 
+## F37 — MarkInvoicePaidFromWebhook listener (invoice paid + past_due recovery) ✓
+- **Tests:** 3/3 passing (full suite 183/183) — `vendor/bin/pest`
+- **Files changed:** 5 (2 new, 3 modified)
+  - `src/Models/Plan.php` (modified — `nextPeriodEnd(Carbon $start)` helper, single source of truth for period math)
+  - `src/Jobs/InitiateRecurringChargeJob.php` (modified — uses `Plan::nextPeriodEnd()`; private `addInterval` removed)
+  - `src/Listeners/MarkInvoicePaidFromWebhook.php` (new)
+  - `src/GmbPayServiceProvider.php` (modified — registers the listener in the `auto_register` block)
+  - `tests/Webhook/MarkInvoicePaidFromWebhookTest.php` (new — three end-to-end cases through `$this->postJson()`)
+- **Lines:** +210 / -25
+- **Complexity:** Medium — small listener body, but coordinates four models (Charge, Invoice, Subscription, Plan) and required factoring the period-math helper out of F32
+- **Notes:**
+  - **Two paths, one listener**: Active subscriptions get only the Invoice flip (no period change — F32 already advanced optimistically). PastDue subscriptions ALSO recover to Active and re-advance — that's the canonical "retry succeeded" recovery. Tests (a) and (b) lock both
+  - **`Plan::nextPeriodEnd()` is the new single source of truth** for period math. F32's private `addInterval()` was the previous duplicate — now removed. Future features (e.g. invoice prorating, plan changes) should call this same method
+  - **Orphan-charge case is silently a no-op**: when a `charge.succeeded` arrives for a Charge that has no Invoice (e.g. a one-shot charge from `Billable::charge()` without a subscription), the listener's `where('charge_id')->first()` returns null and we return. F08's listener still updates the Charge.status independently. Test (c) confirms no Invoice rows materialise
+  - **Listener registration** lives in the same `auto_register` config gate as F08/F09. Three listeners now: UpdateCharge, UpdateRefund, MarkInvoicePaid. Apps that opt-out (`gmb-pay.events.auto_register=false`) wire all three explicitly
+  - F38 (the `charge.failed → past_due + dispatch retry` half of the loop) closes Phase G next
+
 ## F36 — Install-command schedule hint ✓
 - **Tests:** 1/1 passing (full suite 180/180) — `vendor/bin/pest`
 - **Files changed:** 2 (1 new, 1 modified)

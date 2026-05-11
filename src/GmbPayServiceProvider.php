@@ -8,6 +8,7 @@ use Africs\GmbPay\Console\CycleCommand;
 use Africs\GmbPay\Console\InstallCommand;
 use Africs\GmbPay\Events\WebhookReceived;
 use Africs\GmbPay\Idempotency\IdempotencyStore;
+use Africs\GmbPay\Listeners\MarkInvoicePaidFromWebhook;
 use Africs\GmbPay\Listeners\UpdateChargeFromWebhook;
 use Africs\GmbPay\Listeners\UpdateRefundFromWebhook;
 use Illuminate\Contracts\Container\Container;
@@ -36,6 +37,7 @@ class GmbPayServiceProvider extends ServiceProvider
         if ($this->app['config']->get('gmb-pay.events.auto_register', true)) {
             Event::listen(WebhookReceived::class, UpdateChargeFromWebhook::class);
             Event::listen(WebhookReceived::class, UpdateRefundFromWebhook::class);
+            Event::listen(WebhookReceived::class, MarkInvoicePaidFromWebhook::class);
         }
 
         if ($this->app->runningInConsole()) {
